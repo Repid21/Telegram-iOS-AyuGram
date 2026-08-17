@@ -1,0 +1,136 @@
+name: Build Telegram Ayu IPA v0.2.2
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: telegram-ayu-ipa
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 360
+    env:
+      TG_API_ID: ${{ secrets.TG_API_ID }}
+      TG_API_HASH: ${{ secrets.TG_API_HASH }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${TG_API_ID:-}" || { echo 'TG_API_ID missing'; exit 1; }
+          test -n "${TG_API_HASH:-}" || { echo 'TG_API_HASH missing'; exit 1; }
+
+      - name: Select Xcode 26.2
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.2.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Checkout pinned Telegram source
+        id: telegram-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          REF="$(tr -d '[:space:]' < telegram-ref.txt 2>/dev/null || true)"
+          if [ -z "$REF" ]; then
+            REF="$(git ls-remote https://github.com/TelegramMessenger/Telegram-iOS.git HEAD | awk '{print $1}')"
+          fi
+          cd "$RUNNER_TEMP"
+          git init Telegram-iOS
+          cd Telegram-iOS
+          git remote add origin https://github.com/TelegramMessenger/Telegram-iOS.git
+          git fetch --depth 1 origin "$REF"
+          git checkout --detach FETCH_HEAD
+          git submodule update --init --recursive --depth 1 --jobs 8
+          ACTUAL_REF="$(git rev-parse HEAD)"
+          echo "Telegram ref: $ACTUAL_REF"
+          echo "ref=$ACTUAL_REF" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Bazel disk cache
+        id: bazel-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/telegram-bazel-cache
+          key: telegram-ios-bazel-v022-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
+          restore-keys: |
+            telegram-ios-bazel-v022-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-
+
+      - name: Apply Ayu v0.2.2
+        run: python3 "$GITHUB_WORKSPACE/apply_ayu_v02.py" "$RUNNER_TEMP/Telegram-iOS"
+
+      - name: Create build configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/Telegram-iOS"
+          cat > build-system/ayu-ci-configuration.json <<EOF
+          {
+            "bundle_id": "ph.telegra.Telegraph",
+            "api_id": "${TG_API_ID}",
+            "api_hash": "${TG_API_HASH}",
+            "team_id": "C67CF9S4VU",
+            "app_center_id": "0",
+            "is_internal_build": "true",
+            "is_appstore_build": "false",
+            "appstore_id": "0",
+            "app_specific_url_scheme": "tg",
+            "premium_iap_product_id": "",
+            "enable_siri": false,
+            "enable_icloud": false
+          }
+          EOF
+          python3 -m json.tool build-system/ayu-ci-configuration.json >/dev/null
+
+      - name: Import fake signing certificates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/Telegram-iOS"
+          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
+          security find-identity -v -p codesigning || true
+
+      - name: Build release arm64
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/Telegram-iOS"
+          mkdir -p "$RUNNER_TEMP/output"
+          python3 build-system/Make/Make.py \
+            --cacheDir="$HOME/telegram-bazel-cache" \
+            build \
+            --configurationPath=build-system/ayu-ci-configuration.json \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --buildNumber="$GITHUB_RUN_NUMBER" \
+            --configuration=release_arm64 \
+            --outputBuildArtifactsPath="$RUNNER_TEMP/output"
+
+      - name: Prepare IPA
+        id: ipa
+        shell: bash
+        run: |
+          set -euo pipefail
+          IPA="$RUNNER_TEMP/output/Telegram.ipa"
+          test -f "$IPA" || { find "$RUNNER_TEMP/output" -type f -print; exit 1; }
+          mv "$IPA" "$RUNNER_TEMP/output/AyuGram-iOS-v0.2.2.ipa"
+          echo "path=$RUNNER_TEMP/output/AyuGram-iOS-v0.2.2.ipa" >> "$GITHUB_OUTPUT"
+          ls -lh "$RUNNER_TEMP/output/AyuGram-iOS-v0.2.2.ipa"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: AyuGram-iOS-v0.2.2-IPA
+          path: ${{ steps.ipa.outputs.path }}
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Save Bazel disk cache for next build
+        if: always()
+        continue-on-error: true
+        uses: actions/cache/save@v4
+        with:
+          path: ~/telegram-bazel-cache
+          key: telegram-ios-bazel-v022-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}

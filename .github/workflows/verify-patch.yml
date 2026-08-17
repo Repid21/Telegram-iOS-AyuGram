@@ -1,0 +1,57 @@
+name: Verify Ayu Patch
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'apply_ayu_v02.py'
+      - 'payload/**'
+      - 'telegram-ref.txt'
+      - '.github/workflows/verify-patch.yml'
+
+concurrency:
+  group: ayu-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python syntax
+        run: python3 -m py_compile apply_ayu_v02.py
+
+      - name: Checkout pinned Telegram source
+        shell: bash
+        run: |
+          set -euo pipefail
+          REF="$(tr -d '[:space:]' < telegram-ref.txt 2>/dev/null || true)"
+          if [ -z "$REF" ]; then
+            REF="$(git ls-remote https://github.com/TelegramMessenger/Telegram-iOS.git HEAD | awk '{print $1}')"
+          fi
+          cd "$RUNNER_TEMP"
+          git init Telegram-iOS
+          cd Telegram-iOS
+          git remote add origin https://github.com/TelegramMessenger/Telegram-iOS.git
+          git fetch --depth 1 origin "$REF"
+          git checkout --detach FETCH_HEAD
+
+      - name: Apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/apply_ayu_v02.py" "$RUNNER_TEMP/Telegram-iOS"
+
+      - name: Verify markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/Telegram-iOS"
+          grep -q 'AYU_IOS_PATCH_v0_2' submodules/TelegramCore/Sources/State/ManagedAccountPresence.swift
+          grep -q 'AYU_IOS_PATCH_v0_2' submodules/TelegramCore/Sources/State/ManagedLocalInputActivities.swift
+          grep -q 'AYU_IOS_PATCH_v0_2' submodules/TelegramCore/Sources/State/SynchronizePeerReadState.swift
+          grep -q 'AYU_IOS_PATCH_v0_2' submodules/TelegramCore/Sources/State/ManagedSynchronizeViewStoriesOperations.swift
+          grep -q 'AyuGram Settings' submodules/DebugSettingsUI/Sources/DebugController.swift
+          echo '✅ patch anchors OK'
