@@ -7,7 +7,7 @@ import shutil
 import sys
 from pathlib import Path
 
-PATCH_VERSION = "0.2"
+PATCH_VERSION = "0.2.3"
 MARK = "AYU_IOS_PATCH_v0_2"
 
 
@@ -152,14 +152,40 @@ private func presentAyuSettings(arguments: DebugControllerArguments) {
 '''
     text = text.replace(anchor, helper + anchor, 1)
 
-    # Replace only the existing Accounts row, keeping DebugControllerEntry exhaustive switches untouched.
+    # Replace ONLY the .accounts row inside item(...).
+    # v0.2.2 searched the whole enum and accidentally matched the earlier
+    # `var section` switch, corrupting ItemListNodeEntry conformance.
+    item_anchor = "    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {"
+    item_start = text.find(item_anchor)
+    if item_start == -1:
+        die("debug item() anchor missing")
+
+    prefix = text[:item_start]
+    item_text = text[item_start:]
+
     pattern = re.compile(r"(?s)        case \.accounts:\n.*?(?=        case \.logToFile:)")
-    matches = list(pattern.finditer(text))
+    matches = list(pattern.finditer(item_text))
     if len(matches) != 1:
-        die(f"debug accounts item expected once, found {len(matches)}")
-    replacement = '''        case .accounts:\n            return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "AyuGram Settings", label: "", sectionId: self.section, style: .blocks, action: {\n                presentAyuSettings(arguments: arguments)\n            })\n'''
+        die(f"debug accounts item expected once inside item(), found {len(matches)}")
+
+    replacement = (
+        '        case .accounts:\n'
+        '            return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "AyuGram Settings", label: "", sectionId: self.section, style: .blocks, action: {\n'
+        '                presentAyuSettings(arguments: arguments)\n'
+        '            })\n'
+    )
     m = matches[0]
-    text = text[:m.start()] + replacement + text[m.end():]
+    item_text = item_text[:m.start()] + replacement + item_text[m.end():]
+    text = prefix + item_text
+
+    # Fail fast if an upstream change ever makes us corrupt the enum switches.
+    section_ok = "        case .accounts:\n            return DebugControllerSection.logs.rawValue"
+    stable_ok = "        case .accounts:\n            return 9"
+    if section_ok not in text:
+        die("debug section switch was modified unexpectedly")
+    if stable_ok not in text:
+        die("debug stableId switch was modified unexpectedly")
+
     return text
 
 

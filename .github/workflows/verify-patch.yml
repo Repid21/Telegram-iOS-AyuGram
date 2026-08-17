@@ -44,6 +44,32 @@ jobs:
           set -euo pipefail
           python3 "$GITHUB_WORKSPACE/apply_ayu_v02.py" "$RUNNER_TEMP/Telegram-iOS"
 
+      - name: Verify DebugController structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          FILE="$RUNNER_TEMP/Telegram-iOS/submodules/DebugSettingsUI/Sources/DebugController.swift"
+          python3 - "$FILE" <<'PY'
+          import sys
+          from pathlib import Path
+
+          text = Path(sys.argv[1]).read_text(encoding="utf-8")
+          section = """        case .accounts:
+              return DebugControllerSection.logs.rawValue"""
+          stable = """        case .accounts:
+              return 9"""
+          item = """        case .accounts:
+              return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "AyuGram Settings""""
+
+          assert section in text, "accounts section mapping corrupted"
+          assert stable in text, "accounts stableId mapping corrupted"
+          assert item in text, "AyuGram row not installed"
+          item_pos = text.index("    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {")
+          ayu_pos = text.index('title: "AyuGram Settings"')
+          assert ayu_pos > item_pos, "AyuGram row injected before item()"
+          print("✅ DebugController structure OK")
+          PY
+
       - name: Verify markers
         shell: bash
         run: |
