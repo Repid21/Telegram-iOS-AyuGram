@@ -138,6 +138,16 @@ func ayuSettingsController(context: AccountContext) -> ViewController {
     let arguments = AyuSettingsControllerArguments(
         updateBool: { option, value in
             AyuRuntimeSettings.set(option, value: value)
+            if value {
+                switch option {
+                case .master, .hideOnline:
+                    if AyuRuntimeSettings.suppressOnlineStatus {
+                        AyuGhostLastSeen.recordNow()
+                    }
+                default:
+                    break
+                }
+            }
             bump()
         },
         cycleDeletedStyle: {
