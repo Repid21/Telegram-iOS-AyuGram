@@ -55,6 +55,7 @@ jobs:
           root = Path(sys.argv[1])
           settings = (root / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
           ayu_controller = root / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift"
+          ghost_last_seen = root / "submodules/TelegramCore/Sources/State/AyuGhostLastSeen.swift"
           debug = (root / "submodules/DebugSettingsUI/Sources/DebugController.swift").read_text(encoding="utf-8")
 
           marker = 'text: "AyuGram"'
@@ -63,6 +64,7 @@ jobs:
           username = 'if let peer = data.peer, (peer.addressName ?? "").isEmpty {'
           assert settings.index(photo) < settings.index(marker) < settings.index(username), "AyuGram row is not below profile photo"
           assert ayu_controller.exists(), "AyuSettingsController.swift missing"
+          assert ghost_last_seen.exists(), "AyuGhostLastSeen.swift missing"
           assert 'AyuGram Settings' not in debug, "legacy DebugController Ayu row should not be patched in v0.3"
           print("✅ native settings structure OK")
           PY
@@ -95,5 +97,7 @@ jobs:
           grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/StringForMessageTimestampStatus.swift
           grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/ChatMessageDateAndStatusNode.swift
           grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoData.swift
           grep -q 'func ayuSettingsController(context: AccountContext)' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift
+          grep -q 'public enum AyuGhostLastSeen' submodules/TelegramCore/Sources/State/AyuGhostLastSeen.swift
           echo '✅ v0.3 patch anchors OK'
