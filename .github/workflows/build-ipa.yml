@@ -1,10 +1,10 @@
-name: Build Telegram Ayu IPA v0.2.5
+name: Build Telegram Ayu IPA v0.3.0
 
 on:
   workflow_dispatch:
 
 concurrency:
-  group: telegram-ayu-ipa
+  group: telegram-ayu-v03-ipa
   cancel-in-progress: true
 
 jobs:
@@ -35,10 +35,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          REF="$(tr -d '[:space:]' < telegram-ref.txt 2>/dev/null || true)"
-          if [ -z "$REF" ]; then
-            REF="$(git ls-remote https://github.com/TelegramMessenger/Telegram-iOS.git HEAD | awk '{print $1}')"
-          fi
+          REF="$(tr -d '[:space:]' < telegram-ref.txt)"
+          test -n "$REF" || { echo 'telegram-ref.txt is empty'; exit 1; }
           cd "$RUNNER_TEMP"
           git init Telegram-iOS
           cd Telegram-iOS
@@ -47,6 +45,7 @@ jobs:
           git checkout --detach FETCH_HEAD
           git submodule update --init --recursive --depth 1 --jobs 8
           ACTUAL_REF="$(git rev-parse HEAD)"
+          test "$ACTUAL_REF" = "$REF" || { echo "Pinned Telegram ref mismatch: $ACTUAL_REF != $REF"; exit 1; }
           echo "Telegram ref: $ACTUAL_REF"
           echo "ref=$ACTUAL_REF" >> "$GITHUB_OUTPUT"
 
@@ -55,12 +54,12 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/telegram-bazel-cache
-          key: telegram-ios-bazel-v025-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
+          key: telegram-ios-bazel-v030-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
           restore-keys: |
-            telegram-ios-bazel-v025-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-
+            telegram-ios-bazel-v030-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-
 
-      - name: Apply Ayu v0.2.5
-        run: python3 "$GITHUB_WORKSPACE/apply_ayu_v02.py" "$RUNNER_TEMP/Telegram-iOS"
+      - name: Apply Ayu v0.3.0
+        run: python3 "$GITHUB_WORKSPACE/apply_ayu_v03.py" "$RUNNER_TEMP/Telegram-iOS"
 
       - name: Create build configuration
         shell: bash
@@ -115,14 +114,14 @@ jobs:
           set -euo pipefail
           IPA="$RUNNER_TEMP/output/Telegram.ipa"
           test -f "$IPA" || { find "$RUNNER_TEMP/output" -type f -print; exit 1; }
-          mv "$IPA" "$RUNNER_TEMP/output/AyuGram-iOS-v0.2.5.ipa"
-          echo "path=$RUNNER_TEMP/output/AyuGram-iOS-v0.2.5.ipa" >> "$GITHUB_OUTPUT"
-          ls -lh "$RUNNER_TEMP/output/AyuGram-iOS-v0.2.5.ipa"
+          mv "$IPA" "$RUNNER_TEMP/output/AyuGram-iOS-v0.3.0.ipa"
+          echo "path=$RUNNER_TEMP/output/AyuGram-iOS-v0.3.0.ipa" >> "$GITHUB_OUTPUT"
+          ls -lh "$RUNNER_TEMP/output/AyuGram-iOS-v0.3.0.ipa"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: AyuGram-iOS-v0.2.5-IPA
+          name: AyuGram-iOS-v0.3.0-IPA
           path: ${{ steps.ipa.outputs.path }}
           compression-level: 0
           if-no-files-found: error
@@ -133,4 +132,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/telegram-bazel-cache
-          key: telegram-ios-bazel-v025-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
+          key: telegram-ios-bazel-v030-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
