@@ -18,7 +18,7 @@ jobs:
 
   build_ipa:
     needs: verify
-    if: startsWith(github.event.pull_request.title, 'CI: build Ayu v0.3 IPA')
+    if: "${{ startsWith(github.event.pull_request.title, 'CI: build Ayu v0.3 IPA') }}"
     runs-on: macos-26
     timeout-minutes: 360
     env:
