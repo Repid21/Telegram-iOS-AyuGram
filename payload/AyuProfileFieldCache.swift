@@ -9,9 +9,9 @@ struct AyuCachedProfileFields {
 }
 
 private struct AyuCachedProfileFieldsCodable: Codable {
-    var phone: String?
-    var username: String?
-    var note: String?
+    var phone: String? = nil
+    var username: String? = nil
+    var note: String? = nil
 }
 
 /// Keeps only profile fields that Telegram has already shown to this client.
@@ -20,7 +20,7 @@ enum AyuProfileFieldCache {
     private static let defaultsKey = "com.nomadvorga.telegram.ayu.v03.profileFieldCache"
 
     private static func peerKey(_ peerId: PeerId) -> String {
-        return "\(peerId.namespace):\(peerId.id._internalGetInt64Value())"
+        return String(peerId.toInt64())
     }
 
     private static func load() -> [String: AyuCachedProfileFieldsCodable] {
