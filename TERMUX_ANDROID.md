@@ -15,4 +15,4 @@ Recommended flow:
 3. git add -A
 4. commit + push
 5. run Verify Ayu Patch
-6. if green, run Build Telegram Ayu IPA v0.2.3
+6. if green, run Build Telegram Ayu IPA v0.2.4

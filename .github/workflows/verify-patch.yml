@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   verify:
-    runs-on: macos-26
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -54,19 +54,19 @@ jobs:
           from pathlib import Path
 
           text = Path(sys.argv[1]).read_text(encoding="utf-8")
-          section = """        case .accounts:
-              return DebugControllerSection.logs.rawValue"""
-          stable = """        case .accounts:
-              return 9"""
-          item = """        case .accounts:
-              return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "AyuGram Settings""""
+          item_anchor = "    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {"
+          item_pos = text.index(item_anchor)
 
-          assert section in text, "accounts section mapping corrupted"
-          assert stable in text, "accounts stableId mapping corrupted"
-          assert item in text, "AyuGram row not installed"
-          item_pos = text.index("    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {")
-          ayu_pos = text.index('title: "AyuGram Settings"')
-          assert ayu_pos > item_pos, "AyuGram row injected before item()"
+          prefix = text[:item_pos]
+          assert """        case .accounts:
+              return DebugControllerSection.logs.rawValue""" in prefix, "accounts section mapping corrupted"
+          assert """        case .accounts:
+              return 9""" in prefix, "accounts stableId mapping corrupted"
+
+          marker = 'title: "AyuGram Settings"'
+          assert text.count(marker) == 1, "AyuGram row missing or duplicated"
+          assert text.index(marker) > item_pos, "AyuGram row injected outside item()"
+
           print("✅ DebugController structure OK")
           PY
 

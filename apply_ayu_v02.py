@@ -7,7 +7,7 @@ import shutil
 import sys
 from pathlib import Path
 
-PATCH_VERSION = "0.2.3"
+PATCH_VERSION = "0.2.4"
 MARK = "AYU_IOS_PATCH_v0_2"
 
 
@@ -127,7 +127,7 @@ private func presentAyuSettings(arguments: DebugControllerArguments) {
     }
 
     let alert = UIAlertController(
-        title: "AyuGram iOS v0.2",
+        title: "AyuGram iOS v0.2.4",
         message: "Стабильная база. Ghost работает. Шпион и метки удалённых сообщений подключаются следующим слоем после проверки стабильности.",
         preferredStyle: .alert
     )
@@ -152,9 +152,15 @@ private func presentAyuSettings(arguments: DebugControllerArguments) {
 '''
     text = text.replace(anchor, helper + anchor, 1)
 
-    # Replace ONLY the .accounts row inside item(...).
-    # v0.2.2 searched the whole enum and accidentally matched the earlier
-    # `var section` switch, corrupting ItemListNodeEntry conformance.
+    # Replace ONLY the .accounts branch inside item(...).
+    #
+    # Telegram currently declares the enum case as accounts(PresentationTheme), so
+    # inside `switch self` the branch can be formatted as either:
+    #   case .accounts:
+    #   case let .accounts(theme):
+    #   case .accounts(_):
+    #
+    # Do not depend on the exact associated-value spelling or on the next case name.
     item_anchor = "    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {"
     item_start = text.find(item_anchor)
     if item_start == -1:
@@ -163,10 +169,22 @@ private func presentAyuSettings(arguments: DebugControllerArguments) {
     prefix = text[:item_start]
     item_text = text[item_start:]
 
-    pattern = re.compile(r"(?s)        case \.accounts:\n.*?(?=        case \.logToFile:)")
+    # Only match a switch case at DebugControllerEntry's normal 8-space indentation.
+    # The lookahead stops at the next sibling case, not at nested closure contents.
+    pattern = re.compile(
+        r"(?ms)^        case(?:\s+let)?\s+\.accounts(?:\([^\n:]*\))?\s*:"
+        r".*?(?=^        case\s)"
+    )
     matches = list(pattern.finditer(item_text))
     if len(matches) != 1:
-        die(f"debug accounts item expected once inside item(), found {len(matches)}")
+        samples = re.findall(
+            r"(?m)^        case[^\n]*accounts[^\n]*$",
+            item_text
+        )
+        die(
+            "debug accounts item expected once inside item(), "
+            f"found {len(matches)}; candidates={samples[:5]}"
+        )
 
     replacement = (
         '        case .accounts:\n'
@@ -174,17 +192,24 @@ private func presentAyuSettings(arguments: DebugControllerArguments) {
         '                presentAyuSettings(arguments: arguments)\n'
         '            })\n'
     )
+
     m = matches[0]
     item_text = item_text[:m.start()] + replacement + item_text[m.end():]
     text = prefix + item_text
 
-    # Fail fast if an upstream change ever makes us corrupt the enum switches.
+    # Fail fast if the earlier enum switches were touched.
     section_ok = "        case .accounts:\n            return DebugControllerSection.logs.rawValue"
     stable_ok = "        case .accounts:\n            return 9"
-    if section_ok not in text:
-        die("debug section switch was modified unexpectedly")
-    if stable_ok not in text:
-        die("debug stableId switch was modified unexpectedly")
+    if section_ok not in prefix:
+        die("debug section switch missing/corrupted before item()")
+    if stable_ok not in prefix:
+        die("debug stableId switch missing/corrupted before item()")
+
+    # The injected Ayu row must exist exactly once and only after item(...).
+    if text.count('title: "AyuGram Settings"') != 1:
+        die("AyuGram Settings row expected exactly once")
+    if text.index('title: "AyuGram Settings"') < item_start:
+        die("AyuGram Settings row injected before item()")
 
     return text
 

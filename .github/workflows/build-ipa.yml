@@ -1,4 +1,4 @@
-name: Build Telegram Ayu IPA v0.2.3
+name: Build Telegram Ayu IPA v0.2.4
 
 on:
   workflow_dispatch:
@@ -55,11 +55,11 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/telegram-bazel-cache
-          key: telegram-ios-bazel-v023-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
+          key: telegram-ios-bazel-v024-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
           restore-keys: |
-            telegram-ios-bazel-v023-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-
+            telegram-ios-bazel-v024-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-
 
-      - name: Apply Ayu v0.2.3
+      - name: Apply Ayu v0.2.4
         run: python3 "$GITHUB_WORKSPACE/apply_ayu_v02.py" "$RUNNER_TEMP/Telegram-iOS"
 
       - name: Create build configuration
@@ -115,14 +115,14 @@ jobs:
           set -euo pipefail
           IPA="$RUNNER_TEMP/output/Telegram.ipa"
           test -f "$IPA" || { find "$RUNNER_TEMP/output" -type f -print; exit 1; }
-          mv "$IPA" "$RUNNER_TEMP/output/AyuGram-iOS-v0.2.3.ipa"
-          echo "path=$RUNNER_TEMP/output/AyuGram-iOS-v0.2.3.ipa" >> "$GITHUB_OUTPUT"
-          ls -lh "$RUNNER_TEMP/output/AyuGram-iOS-v0.2.3.ipa"
+          mv "$IPA" "$RUNNER_TEMP/output/AyuGram-iOS-v0.2.4.ipa"
+          echo "path=$RUNNER_TEMP/output/AyuGram-iOS-v0.2.4.ipa" >> "$GITHUB_OUTPUT"
+          ls -lh "$RUNNER_TEMP/output/AyuGram-iOS-v0.2.4.ipa"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: AyuGram-iOS-v0.2.3-IPA
+          name: AyuGram-iOS-v0.2.4-IPA
           path: ${{ steps.ipa.outputs.path }}
           compression-level: 0
           if-no-files-found: error
@@ -133,4 +133,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/telegram-bazel-cache
-          key: telegram-ios-bazel-v023-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
+          key: telegram-ios-bazel-v024-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}

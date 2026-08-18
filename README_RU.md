@@ -1,8 +1,8 @@
-# AyuGram iOS v0.2.3 — stability base
+# AyuGram iOS v0.2.4 — stability base
 
 Это **не старый v0.1**. v0.1 напрямую подтверждал локальный read-state, обходя штатную state machine Telegram; это удалено.
 
-## Что реально работает в v0.2.3
+## Что реально работает в v0.2.4
 
 - Ghost master switch
 - Не отправлять read receipts сообщений
@@ -42,16 +42,22 @@ Ghost **OFF по умолчанию**. Пока он выключен, код в
 Telegram commit фиксируется в `telegram-ref.txt`, чтобы очередной апдейт upstream не ломал patch и не сбрасывал cache без причины.
 
 
-## v0.2.3.2
+## v0.2.4.2
 - Fixed Swift 6 `Atomic.modify` unused-result build error.
 - Workflows can resolve Telegram-iOS HEAD when `telegram-ref.txt` is absent.
 
 
-## v0.2.3
+## v0.2.4
 - Swift 6 fix for ignored Atomic.modify result is included.
 - Build cache key now follows the actual Telegram-iOS commit even when telegram-ref.txt is absent.
 - ZIP includes payload/ and both GitHub Actions workflows.
 
-## v0.2.3
+## v0.2.4
 - Исправлен DebugController: v0.2.2 подменял `case .accounts` в `var section`, а не в `item(...)`.
 - Добавлены guards, чтобы патчер падал до долгой сборки, если `section`/`stableId` когда-либо будут затронуты.
+
+## v0.2.4
+- DebugController patch теперь поддерживает `.accounts` с associated value (`case let .accounts(theme)`, `.accounts(_)` и т.п.).
+- Патч больше не зависит от того, что следующим case будет `.logToFile`.
+- Verify переведён на `ubuntu-latest`: он не компилирует iOS и не требует macOS.
+- Verify проверяет, что `section` и `stableId` не повреждены, а AyuGram row находится только внутри `item(...)`.
