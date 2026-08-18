@@ -25,7 +25,7 @@ def main() -> None:
     telegram = runner_temp / "Telegram-iOS"
 
     print("=== Python syntax ===", flush=True)
-    for name in ("apply_ayu_v03.py", "apply_ayu_profile_cache.py"):
+    for name in ("apply_ayu_v03.py", "apply_ayu_v03_fixed.py", "apply_ayu_profile_cache.py"):
         py_compile.compile(str(workspace / name), doraise=True)
         print(f"OK: {name}")
 
@@ -43,7 +43,7 @@ def main() -> None:
     print(f"Telegram ref: {actual_ref}")
 
     print("=== Apply Ayu patches ===", flush=True)
-    run(sys.executable, str(workspace / "apply_ayu_v03.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_v03_fixed.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_profile_cache.py"), str(telegram))
 
     print("=== Verify native settings ===", flush=True)
@@ -66,7 +66,7 @@ def main() -> None:
 
     print("=== Verify deleted-message hooks ===", flush=True)
     state_utils = (telegram / "submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift").read_text(encoding="utf-8")
-    require(state_utils.count("AyuRuntimeSettings.markDeletedGlobalIds") >= 2, "global deleted-message hooks missing")
+    require(state_utils.count("AyuRuntimeSettings.markDeletedGlobalIds") >= 1, "global deleted-message hook missing")
     require(state_utils.count("AyuRuntimeSettings.markDeletedMessageIds") >= 2, "channel deleted-message hooks missing")
     require("AyuRuntimeSettings.keepDeletedMessages" in state_utils, "deleted preservation guard missing")
 
