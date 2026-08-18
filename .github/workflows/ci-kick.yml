@@ -1,33 +1,60 @@
-name: Kick Ayu v0.3 Verify
+name: Ayu v0.3 Verify and IPA
 
 on:
   workflow_dispatch:
   pull_request:
-    types: [opened]
-  schedule:
-    - cron: '47,52,57,2,7,12,17,22,27,32,37,42 * * * *'
+    types: [opened, reopened, synchronize]
 
 permissions:
-  actions: write
+  contents: read
   issues: write
 
 jobs:
-  kick:
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Dispatch Verify Ayu v0.3
-        uses: actions/github-script@v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: 1,
-              body: `🟦 CI kick alive. run=${context.runId}, event=${context.eventName} — dispatching Verify Ayu v0.3.`
-            });
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'verify-patch.yml',
-              ref: 'main'
-            });
+      - uses: actions/checkout@v4
+
+      - name: Verify Ayu v0.3 against pinned Telegram
+        id: verify_step
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 ci_verify_v03.py 2>&1 | tee ayu-verify.log
+
+      - name: Report Verify result
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFY_OUTCOME: ${{ steps.verify_step.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$VERIFY_OUTCOME" = "success" ]; then
+            gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body "## ✅ Verify success
+
+source: \`$GITHUB_SHA\`
+run: \`$GITHUB_RUN_ID\`
+
+The macOS IPA build job is now unblocked and will start automatically."
+          else
+            {
+              echo "## ❌ Verify failed"
+              echo
+              echo "source: \`$GITHUB_SHA\`"
+              echo "run: \`$GITHUB_RUN_ID\`"
+              echo
+              echo '```text'
+              tail -n 300 ayu-verify.log 2>/dev/null || echo 'verify log missing'
+              echo '```'
+            } > /tmp/ayu-report.md
+            gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body-file /tmp/ayu-report.md
+            exit 1
+          fi
+
+  build_ipa:
+    needs: verify
+    uses: ./.github/workflows/build-ipa.yml
+    secrets: inherit
