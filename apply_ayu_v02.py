@@ -7,7 +7,7 @@ import shutil
 import sys
 from pathlib import Path
 
-PATCH_VERSION = "0.2.4"
+PATCH_VERSION = "0.2.5"
 MARK = "AYU_IOS_PATCH_v0_2"
 
 
@@ -127,7 +127,7 @@ private func presentAyuSettings(arguments: DebugControllerArguments) {
     }
 
     let alert = UIAlertController(
-        title: "AyuGram iOS v0.2.4",
+        title: "AyuGram iOS v0.2.5",
         message: "Стабильная база. Ghost работает. Шпион и метки удалённых сообщений подключаются следующим слоем после проверки стабильности.",
         preferredStyle: .alert
     )

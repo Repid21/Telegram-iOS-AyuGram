@@ -58,10 +58,13 @@ jobs:
           item_pos = text.index(item_anchor)
 
           prefix = text[:item_pos]
-          assert """        case .accounts:
-              return DebugControllerSection.logs.rawValue""" in prefix, "accounts section mapping corrupted"
-          assert """        case .accounts:
-              return 9""" in prefix, "accounts stableId mapping corrupted"
+
+          # Explicit \n avoids YAML/heredoc indentation changing the Swift spaces.
+          section = "        case .accounts:\n            return DebugControllerSection.logs.rawValue"
+          stable = "        case .accounts:\n            return 9"
+
+          assert section in prefix, "accounts section mapping corrupted"
+          assert stable in prefix, "accounts stableId mapping corrupted"
 
           marker = 'title: "AyuGram Settings"'
           assert text.count(marker) == 1, "AyuGram row missing or duplicated"
