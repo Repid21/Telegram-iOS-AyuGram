@@ -1,76 +1,84 @@
-name: Verify Ayu Patch
+name: Verify Ayu Patch v0.3
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'apply_ayu_v02.py'
+      - 'apply_ayu_v03.py'
       - 'payload/**'
       - 'telegram-ref.txt'
       - '.github/workflows/verify-patch.yml'
 
 concurrency:
-  group: ayu-verify-${{ github.ref }}
+  group: ayu-v03-verify-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
       - name: Python syntax
-        run: python3 -m py_compile apply_ayu_v02.py
+        run: python3 -m py_compile apply_ayu_v03.py
 
       - name: Checkout pinned Telegram source
         shell: bash
         run: |
           set -euo pipefail
-          REF="$(tr -d '[:space:]' < telegram-ref.txt 2>/dev/null || true)"
-          if [ -z "$REF" ]; then
-            REF="$(git ls-remote https://github.com/TelegramMessenger/Telegram-iOS.git HEAD | awk '{print $1}')"
-          fi
+          REF="$(tr -d '[:space:]' < telegram-ref.txt)"
+          test -n "$REF" || { echo 'telegram-ref.txt is empty'; exit 1; }
           cd "$RUNNER_TEMP"
           git init Telegram-iOS
           cd Telegram-iOS
           git remote add origin https://github.com/TelegramMessenger/Telegram-iOS.git
           git fetch --depth 1 origin "$REF"
           git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$REF" || { echo 'Pinned Telegram ref mismatch'; exit 1; }
+          echo "Telegram ref: $REF"
 
-      - name: Apply patch
+      - name: Apply Ayu v0.3
         shell: bash
         run: |
           set -euo pipefail
-          python3 "$GITHUB_WORKSPACE/apply_ayu_v02.py" "$RUNNER_TEMP/Telegram-iOS"
+          python3 "$GITHUB_WORKSPACE/apply_ayu_v03.py" "$RUNNER_TEMP/Telegram-iOS"
 
-      - name: Verify DebugController structure
+      - name: Verify native settings structure
         shell: bash
         run: |
           set -euo pipefail
-          FILE="$RUNNER_TEMP/Telegram-iOS/submodules/DebugSettingsUI/Sources/DebugController.swift"
-          python3 - "$FILE" <<'PY'
+          python3 - "$RUNNER_TEMP/Telegram-iOS" <<'PY'
           import sys
           from pathlib import Path
 
+          root = Path(sys.argv[1])
+          settings = (root / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
+          ayu_controller = root / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift"
+          debug = (root / "submodules/DebugSettingsUI/Sources/DebugController.swift").read_text(encoding="utf-8")
+
+          marker = 'text: "AyuGram"'
+          assert settings.count(marker) == 1, "AyuGram settings row missing or duplicated"
+          photo = 'items[.edit]!.append(PeerInfoScreenActionItem(id: 2,'
+          username = 'if let peer = data.peer, (peer.addressName ?? "").isEmpty {'
+          assert settings.index(photo) < settings.index(marker) < settings.index(username), "AyuGram row is not below profile photo"
+          assert ayu_controller.exists(), "AyuSettingsController.swift missing"
+          assert 'AyuGram Settings' not in debug, "legacy DebugController Ayu row should not be patched in v0.3"
+          print("✅ native settings structure OK")
+          PY
+
+      - name: Verify deleted-message guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/Telegram-iOS/submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift" <<'PY'
+          import sys
+          from pathlib import Path
           text = Path(sys.argv[1]).read_text(encoding="utf-8")
-          item_anchor = "    func item(presentationData: ItemListPresentationData, arguments: Any) -> ListViewItem {"
-          item_pos = text.index(item_anchor)
-
-          prefix = text[:item_pos]
-
-          # Explicit \n avoids YAML/heredoc indentation changing the Swift spaces.
-          section = "        case .accounts:\n            return DebugControllerSection.logs.rawValue"
-          stable = "        case .accounts:\n            return 9"
-
-          assert section in prefix, "accounts section mapping corrupted"
-          assert stable in prefix, "accounts stableId mapping corrupted"
-
-          marker = 'title: "AyuGram Settings"'
-          assert text.count(marker) == 1, "AyuGram row missing or duplicated"
-          assert text.index(marker) > item_pos, "AyuGram row injected outside item()"
-
-          print("✅ DebugController structure OK")
+          assert text.count("AyuRuntimeSettings.markDeletedGlobalIds") >= 2, "global deleted-message hooks missing"
+          assert text.count("AyuRuntimeSettings.markDeletedMessageIds") >= 2, "channel deleted-message hooks missing"
+          assert "AyuRuntimeSettings.keepDeletedMessages" in text, "deleted preservation guard missing"
+          print("✅ deleted-message hooks OK")
           PY
 
       - name: Verify markers
@@ -78,9 +86,14 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/Telegram-iOS"
-          grep -q 'AYU_IOS_PATCH_v0_2' submodules/TelegramCore/Sources/State/ManagedAccountPresence.swift
-          grep -q 'AYU_IOS_PATCH_v0_2' submodules/TelegramCore/Sources/State/ManagedLocalInputActivities.swift
-          grep -q 'AYU_IOS_PATCH_v0_2' submodules/TelegramCore/Sources/State/SynchronizePeerReadState.swift
-          grep -q 'AYU_IOS_PATCH_v0_2' submodules/TelegramCore/Sources/State/ManagedSynchronizeViewStoriesOperations.swift
-          grep -q 'AyuGram Settings' submodules/DebugSettingsUI/Sources/DebugController.swift
-          echo '✅ patch anchors OK'
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/ManagedAccountPresence.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/ManagedLocalInputActivities.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/SynchronizePeerReadState.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/ManagedSynchronizeViewStoriesOperations.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/PendingMessages/EnqueueMessage.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/StringForMessageTimestampStatus.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/ChatMessageDateAndStatusNode.swift
+          grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift
+          grep -q 'func ayuSettingsController(context: AccountContext)' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift
+          echo '✅ v0.3 patch anchors OK'
