@@ -51,6 +51,17 @@ def patch_file(path: Path, transform) -> None:
     print(f"[ayu-v03] patched: {path}")
 
 
+def install_payload(source: Path, target: Path, label: str) -> None:
+    if not source.exists():
+        die(f"missing payload: {source}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists() or target.read_text(encoding="utf-8") != source.read_text(encoding="utf-8"):
+        if target.exists():
+            backup(target)
+        shutil.copy2(source, target)
+        print(f"[ayu-v03] installed {label}: {target}")
+
+
 def patch_presence(text: str) -> str:
     old = """            request = self.network.request(Api.functions.account.updateStatus(offline: .boolFalse))\n        } else {\n"""
     new = """            // AYU_IOS_PATCH_v0_3: keep Telegram's original presence state machine/timer.\n            // Only change the actual status request; this avoids the v0.2 timer/disposable surgery.\n            if AyuRuntimeSettings.suppressOnlineStatus {\n                request = self.network.request(Api.functions.account.updateStatus(offline: .boolTrue))\n            } else {\n                request = self.network.request(Api.functions.account.updateStatus(offline: .boolFalse))\n            }\n        } else {\n"""
@@ -108,6 +119,7 @@ private func ayuSendOnlinePulse(account: Account) {
             return .single(.boolFalse)
         }
         let _ = offline.start()
+        AyuGhostLastSeen.recordNow()
     }
 }
 
@@ -158,6 +170,12 @@ def patch_native_settings(text: str) -> str:
     return replace_once(text, username_anchor, ayu_row + username_anchor, "settings-row")
 
 
+def patch_own_profile_last_seen(text: str) -> str:
+    old = """                    if user.id == context.account.peerId {\n                        return .none\n                    }\n"""
+    new = """                    if user.id == context.account.peerId {\n                        // AYU_IOS_PATCH_v0_3: Telegram normally hides the owner's own presence here.\n                        // While Ghost hides online, expose Ayu's locally tracked last-seen instead.\n                        if AyuRuntimeSettings.suppressOnlineStatus {\n                            let timestamp = AyuGhostLastSeen.timestamp\n                            return .presence(TelegramUserPresence(status: .present(until: timestamp), lastActivity: timestamp))\n                        }\n                        return .none\n                    }\n"""
+    return replace_once(text, old, new, "own-profile-last-seen")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Apply AyuGram iOS v0.3 to Telegram-iOS")
     parser.add_argument("repo", nargs="?", default=".")
@@ -168,28 +186,24 @@ def main() -> None:
         die(f"'{root}' is not TelegramMessenger/Telegram-iOS")
 
     here = Path(__file__).resolve().parent
-    payload = here / "payload" / "AyuRuntimeSettings.swift"
-    if not payload.exists():
-        die(f"missing runtime payload: {payload}")
-    target = root / "submodules/TelegramCore/Sources/State/AyuRuntimeSettings.swift"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if not target.exists() or target.read_text(encoding="utf-8") != payload.read_text(encoding="utf-8"):
-        if target.exists():
-            backup(target)
-        shutil.copy2(payload, target)
-        print(f"[ayu-v03] installed runtime settings: {target}")
-
-    settings_payload = here / "payload" / "AyuSettingsController.swift"
-    settings_target = root / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift"
-    if not settings_payload.exists():
-        die(f"missing settings payload: {settings_payload}")
-    if not settings_target.exists() or settings_target.read_text(encoding="utf-8") != settings_payload.read_text(encoding="utf-8"):
-        if settings_target.exists():
-            backup(settings_target)
-        shutil.copy2(settings_payload, settings_target)
-        print(f"[ayu-v03] installed native settings controller: {settings_target}")
-
     state = root / "submodules/TelegramCore/Sources/State"
+
+    install_payload(
+        here / "payload" / "AyuRuntimeSettings.swift",
+        state / "AyuRuntimeSettings.swift",
+        "runtime settings",
+    )
+    install_payload(
+        here / "payload" / "AyuGhostLastSeen.swift",
+        state / "AyuGhostLastSeen.swift",
+        "Ghost last-seen state",
+    )
+    install_payload(
+        here / "payload" / "AyuSettingsController.swift",
+        root / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift",
+        "native settings controller",
+    )
+
     patch_file(state / "ManagedAccountPresence.swift", patch_presence)
     patch_file(state / "ManagedLocalInputActivities.swift", patch_typing)
     patch_file(state / "SynchronizePeerReadState.swift", patch_read_state)
@@ -200,6 +214,7 @@ def main() -> None:
     patch_file(root / "submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/StringForMessageTimestampStatus.swift", patch_timestamp)
     patch_file(root / "submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/ChatMessageDateAndStatusNode.swift", patch_status_color)
     patch_file(root / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift", patch_native_settings)
+    patch_file(root / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoData.swift", patch_own_profile_last_seen)
 
     print("[ayu-v03] DONE")
     print("[ayu-v03] Native Settings -> AyuGram; Ghost defaults OFF; deleted-message preservation defaults ON.")
