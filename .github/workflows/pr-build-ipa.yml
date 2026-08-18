@@ -13,7 +13,6 @@ concurrency:
 
 jobs:
   build:
-    if: github.event.pull_request.title == 'CI: build Ayu v0.3 IPA NOW'
     runs-on: macos-26
     timeout-minutes: 360
     env:
