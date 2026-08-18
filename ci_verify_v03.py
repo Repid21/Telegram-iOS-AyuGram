@@ -25,7 +25,7 @@ def main() -> None:
     telegram = runner_temp / "Telegram-iOS"
 
     print("=== Python syntax ===", flush=True)
-    for name in ("apply_ayu_v03.py", "apply_ayu_v03_fixed.py", "apply_ayu_profile_cache.py"):
+    for name in ("apply_ayu_v03.py", "apply_ayu_v03_fixed.py", "apply_ayu_v03_crashfix.py", "apply_ayu_profile_cache.py"):
         py_compile.compile(str(workspace / name), doraise=True)
         print(f"OK: {name}")
 
@@ -43,7 +43,7 @@ def main() -> None:
     print(f"Telegram ref: {actual_ref}")
 
     print("=== Apply Ayu patches ===", flush=True)
-    run(sys.executable, str(workspace / "apply_ayu_v03_fixed.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_v03_crashfix.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_profile_cache.py"), str(telegram))
 
     print("=== Verify native settings ===", flush=True)
@@ -63,6 +63,14 @@ def main() -> None:
 
     debug = (telegram / "submodules/DebugSettingsUI/Sources/DebugController.swift").read_text(encoding="utf-8")
     require("AyuGram Settings" not in debug, "legacy DebugController Ayu row is still being injected")
+
+    print("=== Verify Ghost read crash fix ===", flush=True)
+    read_state = (telegram / "submodules/TelegramCore/Sources/State/SynchronizePeerReadState.swift").read_text(encoding="utf-8")
+    require("Ghost read suppression must remove the Postbox" in read_state, "transaction-safe Ghost read marker missing")
+    require("transaction.confirmSynchronizedIncomingReadState(peerId)" in read_state, "Ghost read operation is not consumed through Postbox")
+    require("if validate && !AyuRuntimeSettings.suppressReadMessages" not in read_state, "old validation no-op recursion path is still present")
+    dangerous = "if AyuRuntimeSettings.suppressReadMessages {\n        return .single(readState)"
+    require(dangerous not in read_state, "old synchronous .single(readState) Ghost shortcut is still present")
 
     print("=== Verify deleted-message hooks ===", flush=True)
     state_utils = (telegram / "submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift").read_text(encoding="utf-8")
