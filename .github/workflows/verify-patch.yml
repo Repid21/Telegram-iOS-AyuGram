@@ -2,6 +2,8 @@ name: Verify Ayu Patch v0.3
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: '27,32,37,42,47,52,57,2,7,12,17,22 * * * *'
   push:
     paths:
       - 'apply_ayu_v03.py'
@@ -12,7 +14,7 @@ on:
       - '.github/workflows/verify-patch.yml'
 
 permissions:
-  contents: read
+  contents: write
   issues: write
   actions: write
 
@@ -93,3 +95,21 @@ run_id: \`$build_id\`
 status: \`$build_status\`
 head: \`$build_sha\`
 $build_url"
+
+          # Disable the temporary cron after the first fully green verify + successful build dispatch.
+          git fetch origin main
+          git reset --hard origin/main
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/verify-patch.yml')
+          text = p.read_text(encoding='utf-8')
+          text = text.replace("  schedule:\n    - cron: '27,32,37,42,47,52,57,2,7,12,17,22 * * * *'\n", "")
+          p.write_text(text, encoding='utf-8')
+          PY
+          git config user.name 'ayu-ci'
+          git config user.email 'ayu-ci@users.noreply.github.com'
+          git add .github/workflows/verify-patch.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'CI: disable temporary Ayu verify schedule'
+            git push origin HEAD:main
+          fi
