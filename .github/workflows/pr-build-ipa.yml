@@ -2,7 +2,7 @@ name: Ayu v0.3 IPA Build
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, reopened, synchronize]
 
 permissions:
   contents: read
