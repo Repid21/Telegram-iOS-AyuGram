@@ -2,6 +2,8 @@ name: Kick Ayu v0.3 Verify
 
 on:
   workflow_dispatch:
+  pull_request:
+    types: [opened]
   schedule:
     - cron: '47,52,57,2,7,12,17,22,27,32,37,42 * * * *'
 
@@ -21,7 +23,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: 1,
-              body: `🟦 CI kick alive. run=${context.runId} — dispatching Verify Ayu v0.3.`
+              body: `🟦 CI kick alive. run=${context.runId}, event=${context.eventName} — dispatching Verify Ayu v0.3.`
             });
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
