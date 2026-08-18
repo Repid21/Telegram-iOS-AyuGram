@@ -6,12 +6,15 @@ on:
     paths:
       - 'apply_ayu_v03.py'
       - 'apply_ayu_profile_cache.py'
+      - 'ci_verify_v03.py'
       - 'payload/**'
       - 'telegram-ref.txt'
       - '.github/workflows/verify-patch.yml'
 
 permissions:
-  contents: write
+  contents: read
+  issues: write
+  actions: write
 
 concurrency:
   group: ayu-v03-verify-${{ github.ref }}
@@ -24,124 +27,69 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run full verification
+      - name: Verify Ayu v0.3 against pinned Telegram
+        id: verify
+        continue-on-error: true
         shell: bash
         run: |
-          set +e
-          LOG="$GITHUB_WORKSPACE/.ayu-verify.log"
-          STATUS_FILE="$GITHUB_WORKSPACE/.ayu-verify-status"
+          set -o pipefail
+          python3 ci_verify_v03.py 2>&1 | tee ayu-verify.log
 
-          (
-            set -euo pipefail
-
-            echo '=== Python syntax ==='
-            python3 -m py_compile "$GITHUB_WORKSPACE/apply_ayu_v03.py"
-            python3 -m py_compile "$GITHUB_WORKSPACE/apply_ayu_profile_cache.py"
-
-            echo '=== Checkout pinned Telegram source ==='
-            REF="$(tr -d '[:space:]' < "$GITHUB_WORKSPACE/telegram-ref.txt")"
-            test -n "$REF"
-            rm -rf "$RUNNER_TEMP/Telegram-iOS"
-            git init "$RUNNER_TEMP/Telegram-iOS"
-            cd "$RUNNER_TEMP/Telegram-iOS"
-            git remote add origin https://github.com/TelegramMessenger/Telegram-iOS.git
-            git fetch --depth 1 origin "$REF"
-            git checkout --detach FETCH_HEAD
-            test "$(git rev-parse HEAD)" = "$REF"
-            echo "Telegram ref: $REF"
-
-            echo '=== Apply Ayu v0.3 ==='
-            python3 "$GITHUB_WORKSPACE/apply_ayu_v03.py" "$RUNNER_TEMP/Telegram-iOS"
-            python3 "$GITHUB_WORKSPACE/apply_ayu_profile_cache.py" "$RUNNER_TEMP/Telegram-iOS"
-
-            echo '=== Verify native settings ==='
-            python3 - "$RUNNER_TEMP/Telegram-iOS" <<'PY'
-          import sys
-          from pathlib import Path
-          root = Path(sys.argv[1])
-          settings = (root / 'submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift').read_text(encoding='utf-8')
-          ayu_controller = root / 'submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift'
-          ghost_last_seen = root / 'submodules/TelegramCore/Sources/State/AyuGhostLastSeen.swift'
-          profile_cache = root / 'submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuProfileFieldCache.swift'
-          debug = (root / 'submodules/DebugSettingsUI/Sources/DebugController.swift').read_text(encoding='utf-8')
-          marker = 'text: "AyuGram"'
-          assert settings.count(marker) == 1, 'AyuGram settings row missing or duplicated'
-          photo = 'items[.edit]!.append(PeerInfoScreenActionItem(id: 2,'
-          username = 'if let peer = data.peer, (peer.addressName ?? "").isEmpty {'
-          assert settings.index(photo) < settings.index(marker) < settings.index(username), 'AyuGram row is not below profile photo'
-          assert ayu_controller.exists(), 'AyuSettingsController.swift missing'
-          assert ghost_last_seen.exists(), 'AyuGhostLastSeen.swift missing'
-          assert profile_cache.exists(), 'AyuProfileFieldCache.swift missing'
-          assert 'AyuGram Settings' not in debug, 'legacy DebugController Ayu row should not be patched in v0.3'
-          print('native settings structure OK')
-          PY
-
-            echo '=== Verify deleted-message hooks ==='
-            python3 - "$RUNNER_TEMP/Telegram-iOS/submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift" <<'PY'
-          import sys
-          from pathlib import Path
-          text = Path(sys.argv[1]).read_text(encoding='utf-8')
-          assert text.count('AyuRuntimeSettings.markDeletedGlobalIds') >= 2, 'global deleted-message hooks missing'
-          assert text.count('AyuRuntimeSettings.markDeletedMessageIds') >= 2, 'channel deleted-message hooks missing'
-          assert 'AyuRuntimeSettings.keepDeletedMessages' in text, 'deleted preservation guard missing'
-          print('deleted-message hooks OK')
-          PY
-
-            echo '=== Verify profile cache hooks ==='
-            PROFILE="$RUNNER_TEMP/Telegram-iOS/submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoProfileItems.swift"
-            grep -q 'AYU_IOS_PROFILE_CACHE_v0_3' "$PROFILE"
-            grep -q 'user.phone ?? ayuCachedProfile.phone' "$PROFILE"
-            grep -q 'user.addressName ?? ayuCachedProfile.username' "$PROFILE"
-            grep -q 'ayuCachedProfile.note' "$PROFILE"
-
-            echo '=== Verify all patch markers ==='
-            cd "$RUNNER_TEMP/Telegram-iOS"
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/ManagedAccountPresence.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/ManagedLocalInputActivities.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/SynchronizePeerReadState.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/ManagedSynchronizeViewStoriesOperations.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramCore/Sources/PendingMessages/EnqueueMessage.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/StringForMessageTimestampStatus.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/ChatMessageDateAndStatusNode.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift
-            grep -q 'AYU_IOS_PATCH_v0_3' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoData.swift
-            grep -q 'func ayuSettingsController(context: AccountContext)' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift
-            grep -q 'public enum AyuGhostLastSeen' submodules/TelegramCore/Sources/State/AyuGhostLastSeen.swift
-            grep -q 'enum AyuProfileFieldCache' submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuProfileFieldCache.swift
-
-            echo '=== VERIFY SUCCESS ==='
-          ) 2>&1 | tee "$LOG"
-
-          status=${PIPESTATUS[0]}
-          printf '%s\n' "$status" > "$STATUS_FILE"
-          exit "$status"
-
-      - name: Publish verification diagnostics
+      - name: Report result and dispatch IPA
         if: always()
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFY_OUTCOME: ${{ steps.verify.outcome }}
         run: |
           set -euo pipefail
-          status="$(cat "$GITHUB_WORKSPACE/.ayu-verify-status" 2>/dev/null || echo 1)"
-          cp "$GITHUB_WORKSPACE/.ayu-verify.log" "$RUNNER_TEMP/ayu-verify.log" 2>/dev/null || echo 'verification step did not produce a log' > "$RUNNER_TEMP/ayu-verify.log"
 
-          git fetch origin main
-          git reset --hard origin/main
-          mkdir -p .ci
-          cp "$RUNNER_TEMP/ayu-verify.log" .ci/verify-v03-last.log
-
-          if [ "$status" = "0" ]; then
-            printf 'success %s source=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${GITHUB_SHA}" > .ci/verify-v03-success.txt
-            rm -f .ci/verify-v03-failure.txt
-          else
-            printf 'failure %s source=%s exit=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${GITHUB_SHA}" "$status" > .ci/verify-v03-failure.txt
-            rm -f .ci/verify-v03-success.txt
+          if [ "$VERIFY_OUTCOME" != "success" ]; then
+            {
+              echo "## ❌ Verify failed"
+              echo
+              echo "source: \`$GITHUB_SHA\`"
+              echo "run: \`$GITHUB_RUN_ID\`"
+              echo
+              echo '```text'
+              tail -n 300 ayu-verify.log 2>/dev/null || echo 'verify log missing'
+              echo '```'
+            } > /tmp/ayu-report.md
+            gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body-file /tmp/ayu-report.md
+            exit 1
           fi
 
-          git config user.name 'ayu-ci'
-          git config user.email 'ayu-ci@users.noreply.github.com'
-          git add .ci/verify-v03-last.log .ci/verify-v03-success.txt .ci/verify-v03-failure.txt 2>/dev/null || true
-          if ! git diff --cached --quiet; then
-            git commit -m "CI: publish Ayu v0.3 verify result"
-            git push origin HEAD:main
+          gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body "## ✅ Verify success
+
+source: \`$GITHUB_SHA\`
+run: \`$GITHUB_RUN_ID\`
+
+Dispatching **Build Telegram Ayu IPA v0.3.0** now."
+
+          gh workflow run build-ipa.yml --repo "$GITHUB_REPOSITORY" --ref main
+
+          build_json=''
+          for _ in $(seq 1 12); do
+            sleep 3
+            build_json="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow build-ipa.yml --limit 1 --json databaseId,status,conclusion,headSha,url,createdAt 2>/dev/null || true)"
+            if [ -n "$build_json" ] && [ "$build_json" != '[]' ]; then
+              break
+            fi
+          done
+
+          if [ -z "$build_json" ] || [ "$build_json" = '[]' ]; then
+            gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body '⚠️ Verify green, workflow dispatch returned successfully, but the IPA run did not appear in the run list within 36 seconds.'
+            exit 1
           fi
+
+          build_id="$(printf '%s' "$build_json" | jq -r '.[0].databaseId')"
+          build_status="$(printf '%s' "$build_json" | jq -r '.[0].status')"
+          build_sha="$(printf '%s' "$build_json" | jq -r '.[0].headSha')"
+          build_url="$(printf '%s' "$build_json" | jq -r '.[0].url')"
+
+          gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body "## 🚀 IPA build started
+
+run_id: \`$build_id\`
+status: \`$build_status\`
+head: \`$build_sha\`
+$build_url"
