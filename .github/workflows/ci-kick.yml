@@ -1,0 +1,31 @@
+name: Kick Ayu v0.3 Verify
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '43,48,53,58,3,8,13,18,23,28,33,38 * * * *'
+
+permissions:
+  actions: write
+  issues: write
+
+jobs:
+  kick:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Verify Ayu v0.3
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 1,
+              body: `🟦 CI kick alive. run=${context.runId} — dispatching Verify Ayu v0.3.`
+            });
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'verify-patch.yml',
+              ref: 'main'
+            });
