@@ -1,5 +1,6 @@
 name: Ayu v0.3 Verify and IPA
 
+# Build trigger after Actions was enabled in the fork.
 on:
   workflow_dispatch:
   pull_request:
