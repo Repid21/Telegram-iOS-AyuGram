@@ -1,6 +1,5 @@
-name: Ayu v0.3 Verify and IPA
+name: Ayu edit-history verify
 
-# Build trigger after Actions was enabled in the fork.
 on:
   workflow_dispatch:
   pull_request:
@@ -11,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   verify:
@@ -19,46 +17,5 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
-      - name: Verify Ayu v0.3 against pinned Telegram
-        id: verify_step
-        continue-on-error: true
-        shell: bash
-        run: |
-          set -o pipefail
-          python3 ci_verify_v03.py 2>&1 | tee ayu-verify.log
-
-      - name: Report Verify result
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERIFY_OUTCOME: ${{ steps.verify_step.outcome }}
-        run: |
-          set -euo pipefail
-          if [ "$VERIFY_OUTCOME" = "success" ]; then
-            gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body "## ✅ Verify success
-
-source: \`$GITHUB_SHA\`
-run: \`$GITHUB_RUN_ID\`
-
-The macOS IPA build job is now unblocked and will start automatically."
-          else
-            {
-              echo "## ❌ Verify failed"
-              echo
-              echo "source: \`$GITHUB_SHA\`"
-              echo "run: \`$GITHUB_RUN_ID\`"
-              echo
-              echo '```text'
-              tail -n 300 ayu-verify.log 2>/dev/null || echo 'verify log missing'
-              echo '```'
-            } > /tmp/ayu-report.md
-            gh issue comment 1 --repo "$GITHUB_REPOSITORY" --body-file /tmp/ayu-report.md
-            exit 1
-          fi
-
-  build_ipa:
-    needs: verify
-    uses: ./.github/workflows/build-ipa.yml
-    secrets: inherit
+      - name: Verify Ayu edit-history patch
+        run: python3 ci_verify_v03.py
