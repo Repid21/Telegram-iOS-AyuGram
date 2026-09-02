@@ -12,6 +12,7 @@ public enum AyuRuntimeOption: Int32, CaseIterable {
     case onlinePulseOnSend = 6
     case keepDeletedMessages = 7
     case showDeletedMarker = 8
+    case trackEditedMessages = 9
 }
 
 public enum AyuDeletedMarkerStyle: Int32, CaseIterable {
@@ -38,6 +39,7 @@ public struct AyuRuntimeSnapshot: Equatable {
     public var onlinePulseOnSend: Bool
     public var keepDeletedMessages: Bool
     public var showDeletedMarker: Bool
+    public var trackEditedMessages: Bool
     public var deletedMarkerStyle: Int32
     public var deletedMarkerColor: Int32
 }
@@ -79,6 +81,8 @@ public enum AyuRuntimeSettings {
             return keyPrefix + "keepDeletedMessages"
         case .showDeletedMarker:
             return keyPrefix + "showDeletedMarker"
+        case .trackEditedMessages:
+            return keyPrefix + "trackEditedMessages"
         }
     }
 
@@ -86,7 +90,7 @@ public enum AyuRuntimeSettings {
         switch option {
         case .master:
             return false
-        case .hideReadMessages, .hideReadStories, .hideOnline, .hideTyping, .automaticOffline, .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker:
+        case .hideReadMessages, .hideReadStories, .hideOnline, .hideTyping, .automaticOffline, .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker, .trackEditedMessages:
             return true
         }
     }
@@ -104,7 +108,7 @@ public enum AyuRuntimeSettings {
             if defaults.object(forKey: legacyKey) != nil {
                 return defaults.bool(forKey: legacyKey)
             }
-        case .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker:
+        case .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker, .trackEditedMessages:
             break
         }
         return defaultValue(option)
@@ -134,6 +138,7 @@ public enum AyuRuntimeSettings {
             onlinePulseOnSend: storedValue(.onlinePulseOnSend, defaults: defaults),
             keepDeletedMessages: storedValue(.keepDeletedMessages, defaults: defaults),
             showDeletedMarker: storedValue(.showDeletedMarker, defaults: defaults),
+            trackEditedMessages: storedValue(.trackEditedMessages, defaults: defaults),
             deletedMarkerStyle: style,
             deletedMarkerColor: color
         )
@@ -175,6 +180,8 @@ public enum AyuRuntimeSettings {
             return current.keepDeletedMessages
         case .showDeletedMarker:
             return current.showDeletedMarker
+        case .trackEditedMessages:
+            return current.trackEditedMessages
         }
     }
 
@@ -201,6 +208,8 @@ public enum AyuRuntimeSettings {
                 current.keepDeletedMessages = value
             case .showDeletedMarker:
                 current.showDeletedMarker = value
+            case .trackEditedMessages:
+                current.trackEditedMessages = value
             }
             return current
         }
@@ -256,6 +265,10 @@ public enum AyuRuntimeSettings {
 
     public static var showDeletedMarker: Bool {
         return state.with { $0.keepDeletedMessages && $0.showDeletedMarker }
+    }
+
+    public static var trackEditedMessages: Bool {
+        return state.with { $0.trackEditedMessages }
     }
 
     private static func fullKey(_ id: MessageId) -> String {
