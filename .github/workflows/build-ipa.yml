@@ -1,32 +1,40 @@
-name: Build Telegram Ayu IPA v0.3.0
+name: Build Telegram Ayu Edit History IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'payload/**'
+      - 'apply_ayu_*.py'
+      - 'ci_verify_v03.py'
+      - 'telegram-ref.txt'
+      - '.github/workflows/build-ipa.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: telegram-ayu-v03-ipa
+  group: telegram-ayu-edit-history-ipa
   cancel-in-progress: true
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify edit-history patch
+        run: python3 ci_verify_v03.py
+
   build:
+    needs: verify
     runs-on: macos-26
     timeout-minutes: 360
-    env:
-      TG_API_ID: ${{ secrets.TG_API_ID }}
-      TG_API_HASH: ${{ secrets.TG_API_HASH }}
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Check secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${TG_API_ID:-}" || { echo 'TG_API_ID missing'; exit 1; }
-          test -n "${TG_API_HASH:-}" || { echo 'TG_API_HASH missing'; exit 1; }
 
       - name: Select Xcode 26.2
         run: |
@@ -54,31 +62,29 @@ jobs:
           echo "ref=$ACTUAL_REF" >> "$GITHUB_OUTPUT"
 
       - name: Restore Bazel disk cache
-        id: bazel-cache
         uses: actions/cache/restore@v4
         with:
           path: ~/telegram-bazel-cache
-          key: telegram-ios-bazel-v030-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
+          key: telegram-ios-edit-history-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
           restore-keys: |
+            telegram-ios-edit-history-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-
             telegram-ios-bazel-v030-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-
-            telegram-ios-bazel-v025-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-
 
-      - name: Apply Ayu v0.3.0 crash-fixed patcher
-        run: python3 "$GITHUB_WORKSPACE/apply_ayu_v03_crashfix.py" "$RUNNER_TEMP/Telegram-iOS"
-
-      - name: Apply Ayu profile cache
-        run: python3 "$GITHUB_WORKSPACE/apply_ayu_profile_cache.py" "$RUNNER_TEMP/Telegram-iOS"
+      - name: Apply Ayu patches
+        run: |
+          python3 "$GITHUB_WORKSPACE/apply_ayu_v03_crashfix.py" "$RUNNER_TEMP/Telegram-iOS"
+          python3 "$GITHUB_WORKSPACE/apply_ayu_profile_cache.py" "$RUNNER_TEMP/Telegram-iOS"
 
       - name: Create build configuration
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/Telegram-iOS"
-          cat > build-system/ayu-ci-configuration.json <<EOF
+          cat > build-system/ayu-ci-configuration.json <<'EOF'
           {
             "bundle_id": "ph.telegra.Telegraph",
-            "api_id": "${TG_API_ID}",
-            "api_hash": "${TG_API_HASH}",
+            "api_id": "8",
+            "api_hash": "7245de8e747a0d6fbe11f7cc14fcc0bb",
             "team_id": "C67CF9S4VU",
             "app_center_id": "0",
             "is_internal_build": "true",
@@ -122,22 +128,22 @@ jobs:
           set -euo pipefail
           IPA="$RUNNER_TEMP/output/Telegram.ipa"
           test -f "$IPA" || { find "$RUNNER_TEMP/output" -type f -print; exit 1; }
-          mv "$IPA" "$RUNNER_TEMP/output/AyuGram-iOS-v0.3.0.ipa"
-          echo "path=$RUNNER_TEMP/output/AyuGram-iOS-v0.3.0.ipa" >> "$GITHUB_OUTPUT"
-          ls -lh "$RUNNER_TEMP/output/AyuGram-iOS-v0.3.0.ipa"
+          mv "$IPA" "$RUNNER_TEMP/output/AyuGram-EditHistory.ipa"
+          echo "path=$RUNNER_TEMP/output/AyuGram-EditHistory.ipa" >> "$GITHUB_OUTPUT"
+          ls -lh "$RUNNER_TEMP/output/AyuGram-EditHistory.ipa"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: AyuGram-iOS-v0.3.0-IPA
+          name: AyuGram-EditHistory-IPA
           path: ${{ steps.ipa.outputs.path }}
           compression-level: 0
           if-no-files-found: error
 
-      - name: Save Bazel disk cache for next build
+      - name: Save Bazel disk cache
         if: always()
         continue-on-error: true
         uses: actions/cache/save@v4
         with:
           path: ~/telegram-bazel-cache
-          key: telegram-ios-bazel-v030-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}
+          key: telegram-ios-edit-history-macos26-xcode262-${{ steps.telegram-source.outputs.ref }}-${{ github.run_id }}

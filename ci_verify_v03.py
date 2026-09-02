@@ -25,7 +25,7 @@ def main() -> None:
     telegram = runner_temp / "Telegram-iOS"
 
     print("=== Python syntax ===", flush=True)
-    for name in ("apply_ayu_v03.py", "apply_ayu_v03_fixed.py", "apply_ayu_v03_crashfix.py", "apply_ayu_profile_cache.py"):
+    for name in ("apply_ayu_v03.py", "apply_ayu_v03_fixed.py", "apply_ayu_v03_crashfix.py", "apply_ayu_edit_history.py", "apply_ayu_profile_cache.py"):
         py_compile.compile(str(workspace / name), doraise=True)
         print(f"OK: {name}")
 
@@ -57,15 +57,17 @@ def main() -> None:
     require(settings.index(photo) < settings.index(marker) < settings.index(username), "AyuGram row is not between profile photo and My Profile")
 
     peer_info_root = telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources"
+    state_root = telegram / "submodules/TelegramCore/Sources/State"
     require((peer_info_root / "AyuSettingsController.swift").exists(), "AyuSettingsController.swift missing")
     require((peer_info_root / "AyuProfileFieldCache.swift").exists(), "AyuProfileFieldCache.swift missing")
-    require((telegram / "submodules/TelegramCore/Sources/State/AyuGhostLastSeen.swift").exists(), "AyuGhostLastSeen.swift missing")
+    require((state_root / "AyuGhostLastSeen.swift").exists(), "AyuGhostLastSeen.swift missing")
+    require((state_root / "AyuEditHistoryStore.swift").exists(), "AyuEditHistoryStore.swift missing")
 
     debug = (telegram / "submodules/DebugSettingsUI/Sources/DebugController.swift").read_text(encoding="utf-8")
     require("AyuGram Settings" not in debug, "legacy DebugController Ayu row is still being injected")
 
     print("=== Verify Ghost read crash fix ===", flush=True)
-    read_state = (telegram / "submodules/TelegramCore/Sources/State/SynchronizePeerReadState.swift").read_text(encoding="utf-8")
+    read_state = (state_root / "SynchronizePeerReadState.swift").read_text(encoding="utf-8")
     require("Ghost read suppression must remove the Postbox" in read_state, "transaction-safe Ghost read marker missing")
     require("transaction.confirmSynchronizedIncomingReadState(peerId)" in read_state, "Ghost read operation is not consumed through Postbox")
     require("if validate && !AyuRuntimeSettings.suppressReadMessages" not in read_state, "old validation no-op recursion path is still present")
@@ -73,10 +75,25 @@ def main() -> None:
     require(dangerous not in read_state, "old synchronous .single(readState) Ghost shortcut is still present")
 
     print("=== Verify deleted-message hooks ===", flush=True)
-    state_utils = (telegram / "submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift").read_text(encoding="utf-8")
+    state_utils = (state_root / "AccountStateManagementUtils.swift").read_text(encoding="utf-8")
     require(state_utils.count("AyuRuntimeSettings.markDeletedGlobalIds") >= 1, "global deleted-message hook missing")
     require(state_utils.count("AyuRuntimeSettings.markDeletedMessageIds") >= 2, "channel deleted-message hooks missing")
     require("AyuRuntimeSettings.keepDeletedMessages" in state_utils, "deleted preservation guard missing")
+
+    print("=== Verify edit-history hooks ===", flush=True)
+    runtime = (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8")
+    history_store = (state_root / "AyuEditHistoryStore.swift").read_text(encoding="utf-8")
+    request_edit = (telegram / "submodules/TelegramCore/Sources/PendingMessages/RequestEditMessage.swift").read_text(encoding="utf-8")
+    context_menu = (telegram / "submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift").read_text(encoding="utf-8")
+    settings_controller = (peer_info_root / "AyuSettingsController.swift").read_text(encoding="utf-8")
+    require("case trackEditedMessages" in runtime, "edit-history setting missing")
+    require("public enum AyuEditHistoryStore" in history_store, "edit-history store missing")
+    require("AyuEditHistoryStore.record" in state_utils, "remote edit-history hook missing")
+    require(request_edit.count("AyuEditHistoryStore.record") >= 4, "outgoing edit-history hooks missing")
+    require("История изменений" in context_menu, "edit-history context menu action missing")
+    require("AyuEditHistoryStore.versions(for: message.id)" in context_menu, "edit-history context menu lookup missing")
+    require("Сохранять историю изменений" in settings_controller, "edit-history settings switch missing")
+    require("AyuEditHistoryStore.clearAll()" in settings_controller, "edit-history clear action missing")
 
     print("=== Verify profile field cache ===", flush=True)
     profile = (peer_info_root / "PeerInfoProfileItems.swift").read_text(encoding="utf-8")
@@ -112,9 +129,18 @@ def main() -> None:
         require("AYU_IOS_PATCH_v0_3" in text, f"patch marker missing in {relative}")
         print(f"OK: {relative}")
 
-    settings_controller = (peer_info_root / "AyuSettingsController.swift").read_text(encoding="utf-8")
+    edit_marker_files = (
+        "submodules/TelegramCore/Sources/State/AccountStateManagementUtils.swift",
+        "submodules/TelegramCore/Sources/PendingMessages/RequestEditMessage.swift",
+        "submodules/TelegramUI/Sources/ChatInterfaceStateContextMenus.swift",
+    )
+    for relative in edit_marker_files:
+        text = (telegram / relative).read_text(encoding="utf-8")
+        require("AYU_IOS_EDIT_HISTORY_v1" in text, f"edit-history patch marker missing in {relative}")
+        print(f"OK edit history: {relative}")
+
     require("func ayuSettingsController(context: AccountContext)" in settings_controller, "Ayu settings controller entrypoint missing")
-    ghost_last_seen = (telegram / "submodules/TelegramCore/Sources/State/AyuGhostLastSeen.swift").read_text(encoding="utf-8")
+    ghost_last_seen = (state_root / "AyuGhostLastSeen.swift").read_text(encoding="utf-8")
     require("public enum AyuGhostLastSeen" in ghost_last_seen, "Ghost last-seen runtime missing")
 
     print("=== VERIFY SUCCESS ===", flush=True)

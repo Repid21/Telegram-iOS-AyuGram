@@ -11,23 +11,27 @@ private final class AyuSettingsControllerArguments {
     let cycleDeletedStyle: () -> Void
     let cycleDeletedColor: () -> Void
     let clearDeleted: () -> Void
+    let clearEdited: () -> Void
 
     init(
         updateBool: @escaping (AyuRuntimeOption, Bool) -> Void,
         cycleDeletedStyle: @escaping () -> Void,
         cycleDeletedColor: @escaping () -> Void,
-        clearDeleted: @escaping () -> Void
+        clearDeleted: @escaping () -> Void,
+        clearEdited: @escaping () -> Void
     ) {
         self.updateBool = updateBool
         self.cycleDeletedStyle = cycleDeletedStyle
         self.cycleDeletedColor = cycleDeletedColor
         self.clearDeleted = clearDeleted
+        self.clearEdited = clearEdited
     }
 }
 
 private enum AyuSettingsSection: Int32 {
     case ghost
     case deleted
+    case edited
 }
 
 private enum AyuSettingsEntry: ItemListNodeEntry {
@@ -44,6 +48,9 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case markerStyle(String)
     case markerColor(String)
     case clearDeleted
+    case editedHeader
+    case trackEdited(Bool)
+    case clearEdited
 
     var section: ItemListSectionId {
         switch self {
@@ -51,6 +58,8 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return AyuSettingsSection.ghost.rawValue
         case .deletedHeader, .keepDeleted, .showMarker, .markerStyle, .markerColor, .clearDeleted:
             return AyuSettingsSection.deleted.rawValue
+        case .editedHeader, .trackEdited, .clearEdited:
+            return AyuSettingsSection.edited.rawValue
         }
     }
 
@@ -69,6 +78,9 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
         case .markerStyle: return 13
         case .markerColor: return 14
         case .clearDeleted: return 15
+        case .editedHeader: return 20
+        case .trackEdited: return 21
+        case .clearEdited: return 22
         }
     }
 
@@ -105,6 +117,12 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "Цвет метки", label: value, sectionId: self.section, style: .blocks, action: { arguments.cycleDeletedColor() })
         case .clearDeleted:
             return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "Очистить метки удалённых", label: "", sectionId: self.section, style: .blocks, action: { arguments.clearDeleted() })
+        case .editedHeader:
+            return ItemListSectionHeaderItem(presentationData: presentationData, text: "ИЗМЕНЕНИЯ СООБЩЕНИЙ", sectionId: self.section)
+        case let .trackEdited(value):
+            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: "Сохранять историю изменений", value: value, sectionId: self.section, style: .blocks, updated: { arguments.updateBool(.trackEditedMessages, $0) })
+        case .clearEdited:
+            return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "Очистить историю изменений", label: "", sectionId: self.section, style: .blocks, action: { arguments.clearEdited() })
         }
     }
 }
@@ -123,7 +141,10 @@ private func ayuSettingsEntries(_ snapshot: AyuRuntimeSnapshot) -> [AyuSettingsE
         .showMarker(snapshot.showDeletedMarker),
         .markerStyle(AyuRuntimeSettings.deletedMarkerStyleTitle),
         .markerColor(AyuRuntimeSettings.deletedMarkerColorTitle),
-        .clearDeleted
+        .clearDeleted,
+        .editedHeader,
+        .trackEdited(snapshot.trackEditedMessages),
+        .clearEdited
     ]
 }
 
@@ -162,6 +183,10 @@ func ayuSettingsController(context: AccountContext) -> ViewController {
         },
         clearDeleted: {
             AyuRuntimeSettings.clearDeletedMarkers()
+            bump()
+        },
+        clearEdited: {
+            AyuEditHistoryStore.clearAll()
             bump()
         }
     )

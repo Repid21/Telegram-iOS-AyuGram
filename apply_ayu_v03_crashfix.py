@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import apply_ayu_v03_fixed as fixed
+import apply_ayu_edit_history as edit_history
 
 base = fixed.base
 
@@ -29,3 +33,5 @@ base.patch_read_state = patch_read_state
 
 if __name__ == "__main__":
     base.main()
+    repo = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
+    edit_history.apply(repo)
