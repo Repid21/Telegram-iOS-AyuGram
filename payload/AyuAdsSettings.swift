@@ -19,6 +19,6 @@ public enum AyuAdsSettings {
 
     public static func setHideAds(_ value: Bool) {
         UserDefaults.standard.set(value, forKey: key)
-        _ = state.swap(value)
+        _ = state.modify { _ in value }
     }
 }
