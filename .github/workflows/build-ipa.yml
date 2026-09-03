@@ -74,6 +74,7 @@ jobs:
         run: |
           python3 "$GITHUB_WORKSPACE/apply_ayu_v03_crashfix.py" "$RUNNER_TEMP/Telegram-iOS"
           python3 "$GITHUB_WORKSPACE/apply_ayu_profile_cache.py" "$RUNNER_TEMP/Telegram-iOS"
+          python3 "$GITHUB_WORKSPACE/apply_ayu_custom_icon.py" "$RUNNER_TEMP/Telegram-iOS"
 
       - name: Create build configuration
         shell: bash
