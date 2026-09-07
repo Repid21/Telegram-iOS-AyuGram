@@ -25,7 +25,16 @@ def main() -> None:
     telegram = runner_temp / "Telegram-iOS"
 
     print("=== Python syntax ===", flush=True)
-    for name in ("apply_ayu_v03.py", "apply_ayu_v03_fixed.py", "apply_ayu_v03_crashfix.py", "apply_ayu_edit_history.py", "apply_ayu_profile_cache.py"):
+    patchers = (
+        "apply_ayu_v03.py",
+        "apply_ayu_v03_fixed.py",
+        "apply_ayu_v03_crashfix.py",
+        "apply_ayu_edit_history.py",
+        "apply_ayu_profile_cache.py",
+        "apply_ayu_unlimited_pins.py",
+        "apply_ayu_ads.py",
+    )
+    for name in patchers:
         py_compile.compile(str(workspace / name), doraise=True)
         print(f"OK: {name}")
 
@@ -45,6 +54,8 @@ def main() -> None:
     print("=== Apply Ayu patches ===", flush=True)
     run(sys.executable, str(workspace / "apply_ayu_v03_crashfix.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_profile_cache.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_unlimited_pins.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_ads.py"), str(telegram))
 
     print("=== Verify native settings ===", flush=True)
     settings = (telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
@@ -62,6 +73,8 @@ def main() -> None:
     require((peer_info_root / "AyuProfileFieldCache.swift").exists(), "AyuProfileFieldCache.swift missing")
     require((state_root / "AyuGhostLastSeen.swift").exists(), "AyuGhostLastSeen.swift missing")
     require((state_root / "AyuEditHistoryStore.swift").exists(), "AyuEditHistoryStore.swift missing")
+    require((state_root / "AyuUnlimitedPins.swift").exists(), "AyuUnlimitedPins.swift missing")
+    require((state_root / "AyuAdsSettings.swift").exists(), "AyuAdsSettings.swift missing")
 
     debug = (telegram / "submodules/DebugSettingsUI/Sources/DebugController.swift").read_text(encoding="utf-8")
     require("AyuGram Settings" not in debug, "legacy DebugController Ayu row is still being injected")
@@ -111,6 +124,33 @@ def main() -> None:
     require("var note: String? = nil" in cache_payload, "profile cache Codable note default missing")
     require("String(peerId.toInt64())" in cache_payload, "profile cache uses an unsafe/internal PeerId key path")
 
+    print("=== Verify unlimited pins runtime switch ===", flush=True)
+    unlimited = (state_root / "AyuUnlimitedPins.swift").read_text(encoding="utf-8")
+    toggle_pins = (telegram / "submodules/TelegramCore/Sources/TelegramEngine/Peers/TogglePeerChatPinned.swift").read_text(encoding="utf-8")
+    reset_state = (state_root / "ResetState.swift").read_text(encoding="utf-8")
+    holes = (state_root / "Holes.swift").read_text(encoding="utf-8")
+    require("public static var isEnabled" in unlimited, "unlimited-pins persisted switch missing")
+    require("trimToServerLimits" in unlimited, "unlimited-pins disable trim missing")
+    require("if AyuUnlimitedPins.isEnabled" in toggle_pins, "pin limit is not runtime-gated")
+    require("if AyuUnlimitedPins.isEnabled" in reset_state, "reset-state local pin merge is not runtime-gated")
+    require("if AyuUnlimitedPins.isEnabled" in holes, "chat-list hole local pin merge is not runtime-gated")
+    require("Безлимитные закрепы" in settings_controller, "unlimited-pins settings switch missing")
+    require("AyuUnlimitedPins.setEnabled(value)" in settings_controller, "unlimited-pins settings action missing")
+    require("AyuUnlimitedPins.trimToServerLimits" in settings_controller, "unlimited-pins disable cleanup missing")
+
+    print("=== Verify client Premium ads + icons ===", flush=True)
+    ads_settings = (state_root / "AyuAdsSettings.swift").read_text(encoding="utf-8")
+    ad_messages = (telegram / "submodules/TelegramCore/Sources/TelegramEngine/Messages/AdMessages.swift").read_text(encoding="utf-8")
+    theme_settings = (telegram / "submodules/SettingsUI/Sources/Themes/ThemeSettingsController.swift").read_text(encoding="utf-8")
+    require("hideAdsSignal" in ads_settings, "reactive ad setting missing")
+    require("unlockPremiumIcons" in ads_settings, "Premium icon setting missing")
+    require("combineLatest(impl.state.get(), AyuAdsSettings.hideAdsSignal)" in ad_messages, "already-open ad contexts are not gated")
+    require(ad_messages.count("AyuAdsSettings.hideAds") >= 4, "ad blocking hooks are incomplete")
+    require(theme_settings.count("AyuAdsSettings.unlockPremiumIcons") >= 3, "Premium icon gates are not fully bypassed")
+    require("Отключить рекламу" in settings_controller, "ad-block settings switch missing")
+    require("Разблокировать Premium-иконки" in settings_controller, "Premium icon settings switch missing")
+    require("AyuAdsSettings.setUnlockPremiumIcons(value)" in settings_controller, "Premium icon settings action missing")
+
     print("=== Verify all patch markers ===", flush=True)
     marker_files = (
         "submodules/TelegramCore/Sources/State/ManagedAccountPresence.swift",
@@ -138,6 +178,11 @@ def main() -> None:
         text = (telegram / relative).read_text(encoding="utf-8")
         require("AYU_IOS_EDIT_HISTORY_v1" in text, f"edit-history patch marker missing in {relative}")
         print(f"OK edit history: {relative}")
+
+    require("AYU_UNLIMITED_PINS_v2" in toggle_pins, "unlimited-pins v2 marker missing")
+    require("AYU_CLIENT_PREMIUM_v2" in ad_messages, "client-Premium ad marker missing")
+    require("AYU_CLIENT_PREMIUM_v2" in theme_settings, "client-Premium icon marker missing")
+    require("AYU_CLIENT_PREMIUM_v2" in settings_controller, "client-Premium settings marker missing")
 
     require("func ayuSettingsController(context: AccountContext)" in settings_controller, "Ayu settings controller entrypoint missing")
     ghost_last_seen = (state_root / "AyuGhostLastSeen.swift").read_text(encoding="utf-8")
