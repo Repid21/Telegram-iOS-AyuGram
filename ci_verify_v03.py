@@ -33,6 +33,7 @@ def main() -> None:
         "apply_ayu_profile_cache.py",
         "apply_ayu_unlimited_pins.py",
         "apply_ayu_ads.py",
+        "apply_ayu_live_deletions.py",
     )
     for name in patchers:
         py_compile.compile(str(workspace / name), doraise=True)
@@ -53,6 +54,8 @@ def main() -> None:
 
     print("=== Apply Ayu patches ===", flush=True)
     run(sys.executable, str(workspace / "apply_ayu_v03_crashfix.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_live_deletions.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_live_deletions.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_profile_cache.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_unlimited_pins.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_ads.py"), str(telegram))
@@ -92,6 +95,25 @@ def main() -> None:
     require(state_utils.count("AyuRuntimeSettings.markDeletedGlobalIds") >= 1, "global deleted-message hook missing")
     require(state_utils.count("AyuRuntimeSettings.markDeletedMessageIds") >= 2, "channel deleted-message hooks missing")
     require("AyuRuntimeSettings.keepDeletedMessages" in state_utils, "deleted preservation guard missing")
+
+    print("=== Verify live deleted-message UI ===", flush=True)
+    runtime = (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8")
+    require("AYU_LIVE_DELETED_MARKERS_v1" in runtime, "deleted marker notifications missing")
+    require(runtime.count("notifyDeletedMarkersChanged()") >= 6, "deleted message and style hooks not reactive")
+    status = (telegram / "submodules/TelegramUI/Components/Chat/ChatMessageDateAndStatusNode/Sources/ChatMessageDateAndStatusNode.swift").read_text(encoding="utf-8")
+    for needle in (
+        "AYU_LIVE_DELETED_MARKERS_v1",
+        "messageId: MessageId? = nil",
+        "ayuDeletedMarkersChanged()",
+        "strongSelf.ayuLastStatusArguments = arguments",
+        "AyuRuntimeSettings.deletedMarkersChangedNotification",
+    ):
+        require(needle in status, f"live deleted-status hook missing: {needle}")
+    from apply_ayu_live_deletions import CHAT_COMPONENTS
+    for component in CHAT_COMPONENTS:
+        path = telegram / "submodules/TelegramUI/Components/Chat" / component / "Sources" / (component + ".swift")
+        content = path.read_text(encoding="utf-8")
+        require(content.count("AYU_LIVE_DELETED_MARKERS_v1") == 1, f"live status message binding missing/duplicated: {component}")
 
     print("=== Verify edit-history hooks ===", flush=True)
     runtime = (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8")

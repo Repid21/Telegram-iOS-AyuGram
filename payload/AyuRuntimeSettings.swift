@@ -61,6 +61,15 @@ public enum AyuRuntimeSettings {
     private static let deletedMarkerColorKey = keyPrefix + "deleted.markerColor"
     private static let maxDeletedMarkers = 20_000
 
+    // AYU_LIVE_DELETED_MARKERS_v1: refresh visible statuses; no server polling.
+    public static let deletedMarkersChangedNotification = Notification.Name("AyuGramDeletedMarkersChanged")
+
+    private static func notifyDeletedMarkersChanged() {
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: deletedMarkersChangedNotification, object: nil)
+        }
+    }
+
     private static func key(_ option: AyuRuntimeOption) -> String {
         switch option {
         case .master:
@@ -213,6 +222,9 @@ public enum AyuRuntimeSettings {
             }
             return current
         }
+        if option == .keepDeletedMessages || option == .showDeletedMarker {
+            notifyDeletedMarkersChanged()
+        }
     }
 
     public static func setDeletedMarkerStyle(_ value: Int32) {
@@ -223,6 +235,7 @@ public enum AyuRuntimeSettings {
             current.deletedMarkerStyle = normalized
             return current
         }
+        notifyDeletedMarkersChanged()
     }
 
     public static func setDeletedMarkerColor(_ value: Int32) {
@@ -233,6 +246,7 @@ public enum AyuRuntimeSettings {
             current.deletedMarkerColor = normalized
             return current
         }
+        notifyDeletedMarkersChanged()
     }
 
     public static var suppressReadMessages: Bool {
@@ -299,6 +313,7 @@ public enum AyuRuntimeSettings {
         }
         if let updated {
             persistDeletedState(updated)
+            notifyDeletedMarkersChanged()
         }
     }
 
@@ -320,6 +335,7 @@ public enum AyuRuntimeSettings {
         }
         if let updated {
             persistDeletedState(updated)
+            notifyDeletedMarkersChanged()
         }
     }
 
@@ -329,6 +345,7 @@ public enum AyuRuntimeSettings {
         }
         UserDefaults.standard.removeObject(forKey: deletedGlobalKey)
         UserDefaults.standard.removeObject(forKey: deletedFullKey)
+        notifyDeletedMarkersChanged()
     }
 
     public static func isDeleted(_ id: MessageId) -> Bool {
@@ -380,6 +397,17 @@ public enum AyuRuntimeSettings {
         case .purple:
             return "Фиолетовый"
         }
+    }
+
+    // Strip any previously rendered Ayu label before applying the current settings.
+    public static func undecorateTimestamp(_ text: String) -> String {
+        for marker in ["🗑", "Удалено", "✕", "DEL"] {
+            let prefix = marker + " "
+            if text.hasPrefix(prefix) {
+                return String(text.dropFirst(prefix.count))
+            }
+        }
+        return text
     }
 
     public static func decorateTimestamp(_ text: String, messageId: MessageId) -> String {
