@@ -103,7 +103,7 @@ def patch_component(src: str, message_id: str, label: str) -> str:
     indentation = src[line_start:date_start]
     if not indentation.isspace():
         raise RuntimeError(f"{label}: malformed indentation")
-    insertion = indentation + f"messageId: {message_id},\n"
+    insertion = indentation + f"messageId: {message_id}, // {MARK}\n"
     return src[:date_end+1] + insertion + src[date_end+1:]
 
 
