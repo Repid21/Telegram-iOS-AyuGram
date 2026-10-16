@@ -105,7 +105,7 @@ def main() -> None:
         "AYU_LIVE_DELETED_MARKERS_v1",
         "messageId: MessageId? = nil",
         "ayuDeletedMarkersChanged()",
-        "self.ayuLastStatusArguments = arguments",
+        "strongSelf.ayuLastStatusArguments = arguments",
         "AyuRuntimeSettings.deletedMarkersChangedNotification",
     ):
         require(needle in status, f"live deleted-status hook missing: {needle}")
