@@ -7,6 +7,7 @@ on:
   issues:
     types: [opened]
   push:
+    branches: [main]
     paths:
       - 'apply_ayu_v03.py'
       - 'apply_ayu_profile_cache.py'
