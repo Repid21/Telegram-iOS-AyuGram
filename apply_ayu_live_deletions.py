@@ -38,6 +38,7 @@ def replace_once(src: str, old: str, new: str, label: str) -> str:
 
 
 def patch_status(src: str) -> str:
+    src = replace_once(src, "import TelegramCore\n", "import TelegramCore\nimport Postbox\n", "status.postbox.import")
     src = replace_once(src, "        var dateText: String\n", "        var dateText: String\n        var messageId: MessageId?\n", "status.arguments.property")
     src = replace_once(src, "            dateText: String,\n", "            dateText: String,\n            messageId: MessageId? = nil,\n", "status.arguments.init")
     src = replace_once(src, "            self.dateText = dateText\n", "            self.dateText = dateText\n            self.messageId = messageId\n", "status.arguments.assignment")
