@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   verify:
-    if: github.event_name != 'issues' || github.event.issue.title == 'Run Ayu v0.3 Verify'
+    if: (github.event_name != 'issues' || github.event.issue.title == 'Run Ayu v0.3 Verify') && (github.event_name != 'push' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
