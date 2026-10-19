@@ -46,45 +46,45 @@ def replace_once(source: str, old: str, new: str, label: str) -> str:
 def patch_settings(source: str) -> str:
     """Extend the final Ayu Premium settings UI, after apply_ayu_ads.py."""
     source = replace_once(source,
-        "    case edited\\n    case premium\\n    case chats",
-        "    case edited\\n    case media\\n    case premium\\n    case chats",
+        "    case edited\n    case premium\n    case chats",
+        "    case edited\n    case media\n    case premium\n    case chats",
         "media section enum")
     source = replace_once(source,
-        "    case clearEdited\\n\\n    case premiumHeader",
-        "    case clearEdited\\n\\n    case viewOnceHeader\\n    case keepViewOncePhotos(Bool)\\n\\n    case premiumHeader",
+        "    case clearEdited\n\n    case premiumHeader",
+        "    case clearEdited\n\n    case viewOnceHeader\n    case keepViewOncePhotos(Bool)\n\n    case premiumHeader",
         "media entries enum")
     source = replace_once(source,
         "        case .premiumHeader, .hideAds, .premiumIcons:",
-        "        case .viewOnceHeader, .keepViewOncePhotos:\\n"
-        "            return AyuSettingsSection.media.rawValue\\n"
+        "        case .viewOnceHeader, .keepViewOncePhotos:\n"
+        "            return AyuSettingsSection.media.rawValue\n"
         "        case .premiumHeader, .hideAds, .premiumIcons:",
         "media section switch")
     source = replace_once(source,
-        "        case .clearEdited: return 42\\n\\n        case .premiumHeader:",
-        "        case .clearEdited: return 42\\n\\n"
-        "        case .viewOnceHeader: return 45\\n"
-        "        case .keepViewOncePhotos: return 46\\n\\n"
+        "        case .clearEdited: return 42\n\n        case .premiumHeader:",
+        "        case .clearEdited: return 42\n\n"
+        "        case .viewOnceHeader: return 45\n"
+        "        case .keepViewOncePhotos: return 46\n\n"
         "        case .premiumHeader:",
         "media stable ids")
     source = replace_once(source,
-        "        case .premiumHeader:\\n"
+        "        case .premiumHeader:\n"
         "            return ItemListSectionHeaderItem(presentationData: presentationData, text:",
-        "        // AYU_VIEW_ONCE_PHOTOS_v1: opt-in repeat viewing of incoming photo media.\\n"
-        "        case .viewOnceHeader:\\n"
+        "        // AYU_VIEW_ONCE_PHOTOS_v1: opt-in repeat viewing of incoming photo media.\n"
+        "        case .viewOnceHeader:\n"
         "            return ItemListSectionHeaderItem(presentationData: presentationData, text: "
-        "\\\"ОДНОРАЗОВЫЕ ФОТО\\\", sectionId: self.section)\\n"
-        "        case let .keepViewOncePhotos(value):\\n"
+        "\"ОДНОРАЗОВЫЕ ФОТО\", sectionId: self.section)\n"
+        "        case let .keepViewOncePhotos(value):\n"
         "            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, "
-        "title: \\\"Повторно открывать одноразовые фото\\\", value: value, sectionId: self.section, "
-        "style: .blocks, updated: { arguments.updateBool(.keepViewOncePhotos, $0) })\\n\\n"
-        "        case .premiumHeader:\\n"
+        "title: \"Повторно открывать одноразовые фото\", value: value, sectionId: self.section, "
+        "style: .blocks, updated: { arguments.updateBool(.keepViewOncePhotos, $0) })\n\n"
+        "        case .premiumHeader:\n"
         "            return ItemListSectionHeaderItem(presentationData: presentationData, text:",
         "media UI controls")
     source = replace_once(source,
-        "            .clearEdited\\n        ]",
-        "            .clearEdited,\\n"
-        "            .viewOnceHeader,\\n"
-        "            .keepViewOncePhotos(snapshot.keepViewOncePhotos)\\n"
+        "            .clearEdited\n        ]",
+        "            .clearEdited,\n"
+        "            .viewOnceHeader,\n"
+        "            .keepViewOncePhotos(snapshot.keepViewOncePhotos)\n"
         "        ]",
         "media page list")
     return source
