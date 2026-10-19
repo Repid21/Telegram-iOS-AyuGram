@@ -133,7 +133,7 @@ def main() -> None:
     settings_controller = (peer_info_root / "AyuSettingsController.swift").read_text(encoding="utf-8")
     require("case keepViewOncePhotos = 10" in runtime, "view-once settings case missing")
     require("keepViewOncePhotos: storedValue(.keepViewOncePhotos, defaults: defaults)" in runtime, "view-once settings persistence missing")
-    require("case .keepViewOncePhotos:\\n            return false" in runtime, "view-once must default off")
+    require("case .keepViewOncePhotos:" in runtime and "return false" in runtime, "view-once must default off")
     require("Повторно открывать одноразовые фото" in settings_controller, "view-once UI switch missing")
     require("arguments.updateBool(.keepViewOncePhotos, $0)" in settings_controller, "view-once UI action missing")
 
