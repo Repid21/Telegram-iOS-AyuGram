@@ -13,6 +13,7 @@ public enum AyuRuntimeOption: Int32, CaseIterable {
     case keepDeletedMessages = 7
     case showDeletedMarker = 8
     case trackEditedMessages = 9
+    case keepViewOncePhotos = 10
 }
 
 public enum AyuDeletedMarkerStyle: Int32, CaseIterable {
@@ -40,6 +41,7 @@ public struct AyuRuntimeSnapshot: Equatable {
     public var keepDeletedMessages: Bool
     public var showDeletedMarker: Bool
     public var trackEditedMessages: Bool
+    public var keepViewOncePhotos: Bool
     public var deletedMarkerStyle: Int32
     public var deletedMarkerColor: Int32
 }
@@ -92,6 +94,8 @@ public enum AyuRuntimeSettings {
             return keyPrefix + "showDeletedMarker"
         case .trackEditedMessages:
             return keyPrefix + "trackEditedMessages"
+        case .keepViewOncePhotos:
+            return keyPrefix + "keepViewOncePhotos"
         }
     }
 
@@ -101,6 +105,9 @@ public enum AyuRuntimeSettings {
             return false
         case .hideReadMessages, .hideReadStories, .hideOnline, .hideTyping, .automaticOffline, .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker, .trackEditedMessages:
             return true
+        // This intentionally changes "view once" semantics; explicit opt-in.
+        case .keepViewOncePhotos:
+            return false
         }
     }
 
@@ -117,7 +124,7 @@ public enum AyuRuntimeSettings {
             if defaults.object(forKey: legacyKey) != nil {
                 return defaults.bool(forKey: legacyKey)
             }
-        case .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker, .trackEditedMessages:
+        case .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker, .trackEditedMessages, .keepViewOncePhotos:
             break
         }
         return defaultValue(option)
@@ -148,6 +155,7 @@ public enum AyuRuntimeSettings {
             keepDeletedMessages: storedValue(.keepDeletedMessages, defaults: defaults),
             showDeletedMarker: storedValue(.showDeletedMarker, defaults: defaults),
             trackEditedMessages: storedValue(.trackEditedMessages, defaults: defaults),
+            keepViewOncePhotos: storedValue(.keepViewOncePhotos, defaults: defaults),
             deletedMarkerStyle: style,
             deletedMarkerColor: color
         )
@@ -191,6 +199,8 @@ public enum AyuRuntimeSettings {
             return current.showDeletedMarker
         case .trackEditedMessages:
             return current.trackEditedMessages
+        case .keepViewOncePhotos:
+            return current.keepViewOncePhotos
         }
     }
 
@@ -219,6 +229,8 @@ public enum AyuRuntimeSettings {
                 current.showDeletedMarker = value
             case .trackEditedMessages:
                 current.trackEditedMessages = value
+            case .keepViewOncePhotos:
+                current.keepViewOncePhotos = value
             }
             return current
         }
@@ -283,6 +295,12 @@ public enum AyuRuntimeSettings {
 
     public static var trackEditedMessages: Bool {
         return state.with { $0.trackEditedMessages }
+    }
+
+    // AYU_VIEW_ONCE_PHOTOS_v1: opt-in local repeat viewing of incoming
+    // cloud-chat view-once photos. Does not affect normal read receipts.
+    public static var keepViewOncePhotos: Bool {
+        return state.with { $0.keepViewOncePhotos }
     }
 
     private static func fullKey(_ id: MessageId) -> String {
