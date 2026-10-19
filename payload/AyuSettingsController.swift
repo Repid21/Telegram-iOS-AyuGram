@@ -67,7 +67,7 @@ private enum AyuRootEntry: ItemListNodeEntry {
                 presentationData: presentationData,
                 systemStyle: .glass,
                 title: "💬  Сообщения",
-                label: "Удалённые, изменения и медиа",
+                label: "Удалённые и изменённые",
                 sectionId: self.section,
                 style: .blocks,
                 action: { arguments.openPage(.messages) }
@@ -121,7 +121,6 @@ private enum AyuSettingsSection: Int32 {
     case ghost
     case deleted
     case edited
-    case media
     case chats
 }
 
@@ -145,9 +144,6 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
     case trackEdited(Bool)
     case clearEdited
 
-    case viewOnceHeader
-    case keepViewOncePhotos(Bool)
-
     case chatsHeader
     case unlimitedPinsInfo
 
@@ -159,8 +155,6 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
             return AyuSettingsSection.deleted.rawValue
         case .editedHeader, .trackEdited, .clearEdited:
             return AyuSettingsSection.edited.rawValue
-        case .viewOnceHeader, .keepViewOncePhotos:
-            return AyuSettingsSection.media.rawValue
         case .chatsHeader, .unlimitedPinsInfo:
             return AyuSettingsSection.chats.rawValue
         }
@@ -186,9 +180,6 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
         case .editedHeader: return 40
         case .trackEdited: return 41
         case .clearEdited: return 42
-
-        case .viewOnceHeader: return 50
-        case .keepViewOncePhotos: return 51
 
         case .chatsHeader: return 60
         case .unlimitedPinsInfo: return 61
@@ -237,12 +228,6 @@ private enum AyuSettingsEntry: ItemListNodeEntry {
         case .clearEdited:
             return ItemListDisclosureItem(presentationData: presentationData, systemStyle: .glass, title: "Очистить историю изменений", label: "", sectionId: self.section, style: .blocks, action: { arguments.clearEdited() })
 
-        // AYU_VIEW_ONCE_PHOTOS_v1: disabled by default, for incoming cloud-chat photos only.
-        case .viewOnceHeader:
-            return ItemListSectionHeaderItem(presentationData: presentationData, text: "ОДНОРАЗОВЫЕ ФОТО", sectionId: self.section)
-        case let .keepViewOncePhotos(value):
-            return ItemListSwitchItem(presentationData: presentationData, systemStyle: .glass, title: "Повторно открывать одноразовые фото", value: value, sectionId: self.section, style: .blocks, updated: { arguments.updateBool(.keepViewOncePhotos, $0) })
-
         case .chatsHeader:
             return ItemListSectionHeaderItem(presentationData: presentationData, text: "ЗАКРЕПЛЁННЫЕ ЧАТЫ", sectionId: self.section)
         case .unlimitedPinsInfo:
@@ -277,9 +262,7 @@ private func ayuPageEntries(_ page: AyuSettingsPage, snapshot: AyuRuntimeSnapsho
             .clearDeleted,
             .editedHeader,
             .trackEdited(snapshot.trackEditedMessages),
-            .clearEdited,
-            .viewOnceHeader,
-            .keepViewOncePhotos(snapshot.keepViewOncePhotos)
+            .clearEdited
         ]
     case .chats:
         return [
