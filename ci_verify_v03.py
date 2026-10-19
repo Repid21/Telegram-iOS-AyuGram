@@ -57,11 +57,11 @@ def main() -> None:
     run(sys.executable, str(workspace / "apply_ayu_v03_crashfix.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_live_deletions.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_live_deletions.py"), str(telegram))
-    run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
-    run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_profile_cache.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_unlimited_pins.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_ads.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
 
     print("=== Verify native settings ===", flush=True)
     settings = (telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
