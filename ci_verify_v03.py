@@ -34,6 +34,7 @@ def main() -> None:
         "apply_ayu_unlimited_pins.py",
         "apply_ayu_ads.py",
         "apply_ayu_live_deletions.py",
+        "apply_ayu_view_once_photos.py",
     )
     for name in patchers:
         py_compile.compile(str(workspace / name), doraise=True)
@@ -59,6 +60,8 @@ def main() -> None:
     run(sys.executable, str(workspace / "apply_ayu_profile_cache.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_unlimited_pins.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_ads.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
 
     print("=== Verify native settings ===", flush=True)
     settings = (telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
@@ -114,6 +117,25 @@ def main() -> None:
         path = telegram / "submodules/TelegramUI/Components/Chat" / component / "Sources" / (component + ".swift")
         content = path.read_text(encoding="utf-8")
         require(content.count("AYU_LIVE_DELETED_MARKERS_v1") == 1, f"live status message binding missing/duplicated: {component}")
+
+    print("=== Verify repeat view-once photos ===", flush=True)
+    consumed = (telegram / "submodules/TelegramCore/Sources/TelegramEngine/Messages/MarkMessageContentAsConsumedInteractively.swift").read_text(encoding="utf-8")
+    require(consumed.count("AYU_VIEW_ONCE_PHOTOS_v1") == 1, "repeat view-once photo hook missing/duplicated")
+    require("if AyuRuntimeSettings.keepViewOncePhotos" in consumed, "view-once photo gate missing")
+    require("message.minAutoremoveOrClearTimeout == viewOnceTimeout" in consumed, "view-once timeout filter missing")
+    require("message.media.contains(where: { $0 is TelegramMediaImage })" in consumed, "image-only filter missing")
+    require("message.id.peerId.namespace == Namespaces.Peer.CloudUser" in consumed, "user cloud scope missing")
+    require("message.id.peerId.namespace == Namespaces.Peer.CloudGroup" in consumed, "group cloud scope missing")
+    # The usual consumption operations must still exist for all other media.
+    require("addSynchronizeConsumeMessageContentsOperation(transaction: transaction, messageIds: [message.id])" in consumed, "normal consumed operations unexpectedly removed")
+    require("AutoclearTimeoutMessageAttribute(timeout: timeout, countdownBeginTime: timestamp)" in consumed, "normal timeout logic unexpectedly removed")
+    runtime = (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8")
+    settings_controller = (peer_info_root / "AyuSettingsController.swift").read_text(encoding="utf-8")
+    require("case keepViewOncePhotos = 10" in runtime, "view-once settings case missing")
+    require("keepViewOncePhotos: storedValue(.keepViewOncePhotos, defaults: defaults)" in runtime, "view-once settings persistence missing")
+    require("case .keepViewOncePhotos:" in runtime and "return false" in runtime, "view-once must default off")
+    require("Повторно открывать одноразовые фото" in settings_controller, "view-once UI switch missing")
+    require("arguments.updateBool(.keepViewOncePhotos, $0)" in settings_controller, "view-once UI action missing")
 
     print("=== Verify edit-history hooks ===", flush=True)
     runtime = (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8")
