@@ -35,6 +35,7 @@ def main() -> None:
         "apply_ayu_ads.py",
         "apply_ayu_live_deletions.py",
         "apply_ayu_view_once_photos.py",
+        "apply_ayu_transcription.py",
     )
     for name in patchers:
         py_compile.compile(str(workspace / name), doraise=True)
@@ -62,6 +63,8 @@ def main() -> None:
     run(sys.executable, str(workspace / "apply_ayu_ads.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_transcription.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_transcription.py"), str(telegram))
 
     print("=== Verify native settings ===", flush=True)
     settings = (telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
@@ -136,6 +139,24 @@ def main() -> None:
     require("case .keepViewOncePhotos:" in runtime and "return false" in runtime, "view-once must default off")
     require("Повторно открывать одноразовые фото" in settings_controller, "view-once UI switch missing")
     require("arguments.updateBool(.keepViewOncePhotos, $0)" in settings_controller, "view-once UI action missing")
+
+    print("=== Verify optional on-device voice transcription ===", flush=True)
+    runtime = (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8")
+    settings_controller = (peer_info_root / "AyuSettingsController.swift").read_text(encoding="utf-8")
+    voice_node = (telegram / "submodules/TelegramUI/Components/Chat/ChatMessageInteractiveFileNode/Sources/ChatMessageInteractiveFileNode.swift").read_text(encoding="utf-8")
+    speech_node = (telegram / "submodules/Media/LocalAudioTranscription/Sources/LocalAudioTranscription.swift").read_text(encoding="utf-8")
+    require("case localVoiceTranscription = 11" in runtime, "local transcription setting missing")
+    require("localVoiceTranscription: storedValue(.localVoiceTranscription, defaults: defaults)" in runtime, "local transcription state must persist")
+    require("case .keepViewOncePhotos, .localVoiceTranscription:" in runtime, "local transcription must default OFF")
+    require("Расшифровка голосовых" in settings_controller, "Client Premium switch missing")
+    require("arguments.updateBool(.localVoiceTranscription, $0)" in settings_controller, "Client Premium switch action missing")
+    require("localVoiceTranscription(snapshot.localVoiceTranscription)" in settings_controller, "Client Premium switch state missing")
+    require(voice_node.count("AYU_LOCAL_VOICE_TRANSCRIPTION_v1") == 1, "voice overlay missing/duplicated")
+    require("AyuRuntimeSettings.value(.localVoiceTranscription) || arguments.associatedData.isPremium" in voice_node, "Telegram-style transcribe button is not shown")
+    require("AyuRuntimeSettings.value(.localVoiceTranscription) || context.sharedContext.immediateExperimentalUISettings.localTranscription" in voice_node, "local transcription path not selected")
+    require("filter { $0.isComplete }" in voice_node, "voice download completion handling missing")
+    require("request.requiresOnDeviceRecognition = true" in speech_node, "on-device-only speech setting missing")
+    require("speechRecognizer.supportsOnDeviceRecognition" in speech_node, "speech on-device support check missing")
 
     print("=== Verify edit-history hooks ===", flush=True)
     runtime = (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8")

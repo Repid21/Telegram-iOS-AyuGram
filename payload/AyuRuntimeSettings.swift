@@ -14,6 +14,7 @@ public enum AyuRuntimeOption: Int32, CaseIterable {
     case showDeletedMarker = 8
     case trackEditedMessages = 9
     case keepViewOncePhotos = 10
+    case localVoiceTranscription = 11
 }
 
 public enum AyuDeletedMarkerStyle: Int32, CaseIterable {
@@ -42,6 +43,7 @@ public struct AyuRuntimeSnapshot: Equatable {
     public var showDeletedMarker: Bool
     public var trackEditedMessages: Bool
     public var keepViewOncePhotos: Bool
+    public var localVoiceTranscription: Bool
     public var deletedMarkerStyle: Int32
     public var deletedMarkerColor: Int32
 }
@@ -96,6 +98,8 @@ public enum AyuRuntimeSettings {
             return keyPrefix + "trackEditedMessages"
         case .keepViewOncePhotos:
             return keyPrefix + "keepViewOncePhotos"
+        case .localVoiceTranscription:
+            return keyPrefix + "localVoiceTranscription"
         }
     }
 
@@ -106,7 +110,7 @@ public enum AyuRuntimeSettings {
         case .hideReadMessages, .hideReadStories, .hideOnline, .hideTyping, .automaticOffline, .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker, .trackEditedMessages:
             return true
         // This intentionally changes "view once" semantics; explicit opt-in.
-        case .keepViewOncePhotos:
+        case .keepViewOncePhotos, .localVoiceTranscription:
             return false
         }
     }
@@ -124,7 +128,7 @@ public enum AyuRuntimeSettings {
             if defaults.object(forKey: legacyKey) != nil {
                 return defaults.bool(forKey: legacyKey)
             }
-        case .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker, .trackEditedMessages, .keepViewOncePhotos:
+        case .onlinePulseOnSend, .keepDeletedMessages, .showDeletedMarker, .trackEditedMessages, .keepViewOncePhotos, .localVoiceTranscription:
             break
         }
         return defaultValue(option)
@@ -156,6 +160,7 @@ public enum AyuRuntimeSettings {
             showDeletedMarker: storedValue(.showDeletedMarker, defaults: defaults),
             trackEditedMessages: storedValue(.trackEditedMessages, defaults: defaults),
             keepViewOncePhotos: storedValue(.keepViewOncePhotos, defaults: defaults),
+            localVoiceTranscription: storedValue(.localVoiceTranscription, defaults: defaults),
             deletedMarkerStyle: style,
             deletedMarkerColor: color
         )
@@ -201,6 +206,8 @@ public enum AyuRuntimeSettings {
             return current.trackEditedMessages
         case .keepViewOncePhotos:
             return current.keepViewOncePhotos
+        case .localVoiceTranscription:
+            return current.localVoiceTranscription
         }
     }
 
@@ -231,6 +238,8 @@ public enum AyuRuntimeSettings {
                 current.trackEditedMessages = value
             case .keepViewOncePhotos:
                 current.keepViewOncePhotos = value
+            case .localVoiceTranscription:
+                current.localVoiceTranscription = value
             }
             return current
         }
