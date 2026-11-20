@@ -103,6 +103,12 @@ jobs:
           EOF
           python3 -m json.tool build-system/ayu-ci-configuration.json >/dev/null
 
+      - name: Refresh expired fake provisioning profiles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/renew_fake_profiles.py" "$RUNNER_TEMP/Telegram-iOS/build-system/fake-codesigning"
+
       - name: Import fake signing certificates
         shell: bash
         run: |
