@@ -36,6 +36,7 @@ def main() -> None:
         "apply_ayu_live_deletions.py",
         "apply_ayu_view_once_photos.py",
         "apply_ayu_transcription.py",
+        "apply_ayu_story_ghost.py",
     )
     for name in patchers:
         py_compile.compile(str(workspace / name), doraise=True)
@@ -65,6 +66,8 @@ def main() -> None:
     run(sys.executable, str(workspace / "apply_ayu_view_once_photos.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_transcription.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_transcription.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_story_ghost.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_story_ghost.py"), str(telegram))
 
     print("=== Verify native settings ===", flush=True)
     settings = (telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
@@ -95,6 +98,19 @@ def main() -> None:
     require("if validate && !AyuRuntimeSettings.suppressReadMessages" not in read_state, "old validation no-op recursion path is still present")
     dangerous = "if AyuRuntimeSettings.suppressReadMessages {\n        return .single(readState)"
     require(dangerous not in read_state, "old synchronous .single(readState) Ghost shortcut is still present")
+
+    print("=== Verify complete anonymous story viewing ===", flush=True)
+    regular_stories = (state_root / "ManagedSynchronizeViewStoriesOperations.swift").read_text(encoding="utf-8")
+    profile_stories = (telegram / "submodules/TelegramCore/Sources/TelegramEngine/Messages/Stories.swift").read_text(encoding="utf-8")
+    story_ui = (telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift").read_text(encoding="utf-8")
+    require("if AyuRuntimeSettings.suppressStoryViews" in regular_stories, "regular story views are not suppressed")
+    require(regular_stories.index("if AyuRuntimeSettings.suppressStoryViews") < regular_stories.index("Api.functions.stories.readStories"), "regular story gate comes after network read")
+    require(profile_stories.count("AYU_GHOST_STORY_PROFILE_v1") == 1, "profile story protection missing/duplicated")
+    pinned_scope = profile_stories.split("func _internal_markStoryAsSeen", 1)[1].split("func _internal_updateStoriesArePinned", 1)[0]
+    require(pinned_scope.index("if AyuRuntimeSettings.suppressStoryViews") < pinned_scope.index("Api.functions.stories.incrementStoryViews"), "pinned story view gate missing")
+    require("Анонимный просмотр историй" in story_ui, "Ghost Mode story switch missing")
+    require("arguments.updateBool(.hideReadStories, $0)" in story_ui, "Ghost story switch not wired")
+    require("return state.with { $0.master && $0.hideReadStories }" in (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8"), "story views not guarded by Ghost master setting")
 
     print("=== Verify deleted-message hooks ===", flush=True)
     state_utils = (state_root / "AccountStateManagementUtils.swift").read_text(encoding="utf-8")
