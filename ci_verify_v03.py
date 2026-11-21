@@ -37,6 +37,7 @@ def main() -> None:
         "apply_ayu_view_once_photos.py",
         "apply_ayu_transcription.py",
         "apply_ayu_story_ghost.py",
+        "apply_ayu_deleted_forward.py",
     )
     for name in patchers:
         py_compile.compile(str(workspace / name), doraise=True)
@@ -68,6 +69,8 @@ def main() -> None:
     run(sys.executable, str(workspace / "apply_ayu_transcription.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_story_ghost.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_story_ghost.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_deleted_forward.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_deleted_forward.py"), str(telegram))
 
     print("=== Verify native settings ===", flush=True)
     settings = (telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
@@ -173,6 +176,21 @@ def main() -> None:
     require("filter { $0.isComplete }" in voice_node, "voice download completion handling missing")
     require("request.requiresOnDeviceRecognition = true" in speech_node, "on-device-only speech setting missing")
     require("speechRecognizer.supportsOnDeviceRecognition" in speech_node, "speech on-device support check missing")
+
+    print("=== Verify resend copies of locally deleted text / voice ===", flush=True)
+    enqueue_source = (telegram / "submodules/TelegramCore/Sources/PendingMessages/EnqueueMessage.swift").read_text(encoding="utf-8")
+    forward_ui = (telegram / "submodules/TelegramUI/Sources/ChatControllerForwardMessages.swift").read_text(encoding="utf-8")
+    require(enqueue_source.count("AYU_DELETED_FORWARD_COPY_v1") == 1, "deleted forward copy hook missing/duplicated")
+    require(forward_ui.count("AYU_DELETED_FORWARD_UI_v1") == 1, "deleted forward UI guard missing/duplicated")
+    require("if AyuRuntimeSettings.isDeleted(sourceId), let savedMessage = transaction.getMessage(sourceId)" in enqueue_source, "deleted forwards not converted to copies")
+    require("Отправитель: " in enqueue_source and "sourceMessage.forwardInfo?.author" not in enqueue_source.split("AYU_DELETED_FORWARD_COPY_v1", 1)[1].split("if let sourceMessage = forwardedMessageToBeReuploaded", 1)[0], "deleted forward sender attribution invalid")
+    require("copyResourceData(" in enqueue_source and "from: voice.resource.id, to: localResource.id, synchronous: true" in enqueue_source, "voice bytes are not locally reuploaded")
+    require("mediaReference: copiedVoice" in enqueue_source, "copied voice not attached to outgoing message")
+    require("correlationId: correlationId" in enqueue_source, "outgoing correlation id lost")
+    require("AyuRuntimeSettings.isDeleted(message.id)" in forward_ui, "deleted voice UI warning missing")
+    require("completedResourcePath(voice.resource) == nil" in forward_ui, "uncached deleted voice was not guarded")
+    require("return self.context.account.postbox.mediaBox.completedResourcePath" in forward_ui, "voice guard bypassed")
+    require("case let .forward(sourceId, threadId, _, requestedAttributes, correlationId):" in enqueue_source, "forward parameters discarded")
 
     print("=== Verify edit-history hooks ===", flush=True)
     runtime = (state_root / "AyuRuntimeSettings.swift").read_text(encoding="utf-8")
