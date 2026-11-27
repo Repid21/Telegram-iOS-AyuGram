@@ -38,6 +38,7 @@ def main() -> None:
         "apply_ayu_transcription.py",
         "apply_ayu_story_ghost.py",
         "apply_ayu_deleted_forward.py",
+        "apply_ayu_network.py",
     )
     for name in patchers:
         py_compile.compile(str(workspace / name), doraise=True)
@@ -71,6 +72,25 @@ def main() -> None:
     run(sys.executable, str(workspace / "apply_ayu_story_ghost.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_deleted_forward.py"), str(telegram))
     run(sys.executable, str(workspace / "apply_ayu_deleted_forward.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_network.py"), str(telegram))
+    run(sys.executable, str(workspace / "apply_ayu_network.py"), str(telegram))
+
+    print("=== Verify network enhancements ===", flush=True)
+    for relative in (
+        "submodules/TelegramCore/Sources/Network/MultipartUpload.swift",
+        "submodules/TelegramCore/Sources/Network/FetchV2.swift",
+        "submodules/TelegramCore/Sources/Network/MultipartFetch.swift",
+        "submodules/TelegramCore/Sources/Account/Account.swift",
+        "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/AyuSettingsController.swift",
+        "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoProfileItems.swift",
+        "submodules/BrowserUI/Sources/BrowserWebContent.swift",
+    ):
+        require((telegram / relative).read_text(encoding="utf-8").count("AYU_NETWORK_TOOLS_v1") == 1, f"network overlay missing/duplicated: {relative}")
+    network_helper = (telegram / "submodules/TelegramCore/Sources/State/AyuNetworkSettings.swift").read_text(encoding="utf-8")
+    require("ProxyServersStatuses" in network_helper and "skipAutomaticProxy" in network_helper, "native proxy monitor or VPN guard missing")
+    require("URLSessionConfiguration.ephemeral" in network_helper and 'url.scheme?.lowercased() == "https"' in network_helper, "proxy feed privacy guard missing")
+    require("latest == observed" in network_helper, "manual proxy change protection missing")
+    require("registrationMonth" in network_helper, "registration formatter missing")
 
     print("=== Verify native settings ===", flush=True)
     settings = (telegram / "submodules/TelegramUI/Components/PeerInfo/PeerInfoScreen/Sources/PeerInfoSettingsItems.swift").read_text(encoding="utf-8")
