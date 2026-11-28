@@ -138,8 +138,8 @@ def browser(s):
         }
 """, r'''        if let request {
             // AYU_NETWORK_TOOLS_v1: install a native WebKit content rule before the first page load.
-            if #available(iOS 11.0, *), request.url?.scheme?.hasPrefix("http") == true {
-                let store = WKContentRuleListStore.default()
+            if #available(iOS 11.0, *), request.url?.scheme?.hasPrefix("http") == true,
+               let store = WKContentRuleListStore.default() {
                 let identifier = "ayu.browser.adblock.v1"
                 let contentController = self.webView.configuration.userContentController
                 let shouldBlock = AyuNetworkSettings.enabled(.browserAdBlock)
